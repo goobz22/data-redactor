@@ -4,7 +4,7 @@ A powerful, client-side data redaction engine for securing sensitive information
 
 ## 🚀 Live Demo
 
-Try it out: **[https://data-redactor-d5qb5uy05-technologies-unlimited-0ef1ee86.vercel.app/](https://data-redactor-d5qb5uy05-technologies-unlimited-0ef1ee86.vercel.app/)**
+Try it out: **[https://data-redactor-ui.vercel.app/](https://data-redactor-ui.vercel.app/)**
 
 ## Installation
 
