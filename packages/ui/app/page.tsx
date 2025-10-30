@@ -7,32 +7,32 @@ import type { RedactorConfig } from 'data-redactor-core';
 const containerStyle: React.CSSProperties = {
   maxWidth: '1400px',
   margin: '0 auto',
-  padding: '40px 20px',
+  padding: '20px 10px',
   background: 'linear-gradient(135deg, #002868 0%, #BF0A30 100%)',
   minHeight: '100vh',
 };
 
 const headerStyle: React.CSSProperties = {
   textAlign: 'center',
-  marginBottom: '40px',
+  marginBottom: '20px',
   background: 'linear-gradient(90deg, #BF0A30 0%, #FFFFFF 50%, #002868 100%)',
-  padding: '30px',
+  padding: '20px 15px',
   borderRadius: '12px',
   boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
   border: '3px solid #FFD700',
 };
 
 const titleStyle: React.CSSProperties = {
-  fontSize: '48px',
+  fontSize: 'clamp(28px, 6vw, 48px)',
   fontWeight: '900',
   marginBottom: '12px',
   color: '#FFD700',
   textShadow: '3px 3px 6px rgba(0,0,0,0.5)',
-  letterSpacing: '2px',
+  letterSpacing: '1px',
 };
 
 const subtitleStyle: React.CSSProperties = {
-  fontSize: '20px',
+  fontSize: 'clamp(14px, 3vw, 20px)',
   color: '#FFFFFF',
   fontWeight: '700',
   textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
@@ -40,7 +40,7 @@ const subtitleStyle: React.CSSProperties = {
 
 const gridStyle: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 400px), 1fr))',
   gap: '20px',
   marginBottom: '20px',
 };
@@ -48,14 +48,14 @@ const gridStyle: React.CSSProperties = {
 const panelStyle: React.CSSProperties = {
   backgroundColor: '#FFFFFF',
   borderRadius: '12px',
-  padding: '28px',
+  padding: 'clamp(16px, 4vw, 28px)',
   boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
   border: '3px solid #FFD700',
 };
 
 const labelStyle: React.CSSProperties = {
   display: 'block',
-  fontSize: '16px',
+  fontSize: 'clamp(14px, 2.5vw, 16px)',
   fontWeight: '800',
   marginBottom: '10px',
   color: '#002868',
@@ -65,9 +65,9 @@ const labelStyle: React.CSSProperties = {
 
 const textareaStyle: React.CSSProperties = {
   width: '100%',
-  minHeight: '200px',
-  padding: '14px',
-  fontSize: '14px',
+  minHeight: '150px',
+  padding: '12px',
+  fontSize: 'clamp(12px, 2vw, 14px)',
   fontFamily: 'monospace',
   border: '3px solid #002868',
   borderRadius: '8px',
@@ -81,15 +81,15 @@ const buttonStyle: React.CSSProperties = {
   color: '#FFFFFF',
   border: '2px solid #FFD700',
   borderRadius: '8px',
-  padding: '14px 28px',
-  fontSize: '16px',
+  padding: 'clamp(10px, 2vw, 14px) clamp(16px, 3vw, 28px)',
+  fontSize: 'clamp(12px, 2.5vw, 16px)',
   fontWeight: '800',
   cursor: 'pointer',
-  marginRight: '12px',
+  marginRight: '8px',
   marginBottom: '8px',
   transition: 'all 0.3s',
   textTransform: 'uppercase',
-  letterSpacing: '1px',
+  letterSpacing: '0.5px',
   boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
 };
 
@@ -121,7 +121,7 @@ const warningStyle: React.CSSProperties = {
 const configSectionStyle: React.CSSProperties = {
   backgroundColor: '#FFFFFF',
   borderRadius: '12px',
-  padding: '28px',
+  padding: 'clamp(16px, 4vw, 28px)',
   boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
   marginBottom: '20px',
   border: '3px solid #FFD700',
@@ -129,8 +129,8 @@ const configSectionStyle: React.CSSProperties = {
 
 const checkboxGroupStyle: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-  gap: '16px',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 220px), 1fr))',
+  gap: '12px',
   marginTop: '16px',
 };
 
@@ -184,26 +184,38 @@ const mappingStyle: React.CSSProperties = {
 
 const tabStyle: React.CSSProperties = {
   display: 'inline-block',
-  padding: '14px 28px',
+  padding: 'clamp(10px, 2vw, 14px) clamp(12px, 3vw, 28px)',
   cursor: 'pointer',
-  marginRight: '8px',
+  marginRight: '4px',
+  marginBottom: '4px',
   transition: 'all 0.3s',
   fontWeight: '700',
-  fontSize: '16px',
+  fontSize: 'clamp(12px, 2.5vw, 16px)',
   color: '#002868',
   backgroundColor: '#F0F4F8',
   borderRadius: '8px 8px 0 0',
-  border: '2px solid #BF0A30',
+  borderTop: '2px solid #BF0A30',
+  borderRight: '2px solid #BF0A30',
   borderBottom: 'none',
+  borderLeft: '2px solid #BF0A30',
 };
 
 const activeTabStyle: React.CSSProperties = {
-  ...tabStyle,
-  color: '#BF0A30',
+  display: 'inline-block',
+  padding: 'clamp(10px, 2vw, 14px) clamp(12px, 3vw, 28px)',
+  cursor: 'pointer',
+  marginRight: '4px',
+  marginBottom: '4px',
+  transition: 'all 0.3s',
   fontWeight: '900',
+  fontSize: 'clamp(12px, 2.5vw, 16px)',
+  color: '#BF0A30',
   backgroundColor: '#FFFFFF',
-  border: '3px solid #FFD700',
+  borderRadius: '8px 8px 0 0',
+  borderTop: '3px solid #FFD700',
+  borderRight: '3px solid #FFD700',
   borderBottom: 'none',
+  borderLeft: '3px solid #FFD700',
 };
 
 export default function Home() {
@@ -887,16 +899,14 @@ Contact support@company.com or call 1-555-FLOWERS for assistance.`,
                           onClick={() => copyToClipboard(tokenOutput, 'Token output')}
                           style={{
                             width: '100%',
-                            fontSize: '12px',
-                            padding: '10px 14px',
-                            backgroundColor: '#BF0A30',
+                            fontSize: '11px',
+                            padding: '6px 10px',
+                            backgroundColor: '#dc2626',
                             color: '#fff',
-                            border: '2px solid #FFD700',
-                            borderRadius: '6px',
+                            border: 'none',
+                            borderRadius: '4px',
                             cursor: 'pointer',
-                            fontWeight: '800',
-                            textTransform: 'uppercase',
-                            letterSpacing: '1px',
+                            fontWeight: '600',
                           }}
                         >
                           📋 Copy Token Output
