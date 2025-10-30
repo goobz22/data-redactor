@@ -854,7 +854,7 @@ Contact support@company.com or call 1-555-FLOWERS for assistance.`,
                     </div>
 
                     {/* Strategy Cards */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 400px), 1fr))', gap: '16px' }}>
                       {/* Token Strategy */}
                       <div style={{ backgroundColor: '#F0F4F8', padding: '16px', borderRadius: '10px', border: '3px solid #BF0A30', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
                         <div style={{ fontSize: '14px', fontWeight: '800', color: '#BF0A30', textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '1px' }}>
