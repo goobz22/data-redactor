@@ -1,6 +1,6 @@
 # Data Redactor 🇺🇸
 
-A powerful, client-side data redaction tool for securing sensitive information before sending to AI systems or external services. Built with American excellence!
+A powerful, client-side data redaction tool for securing sensitive information before sending to AI systems or external services. Made to prove that AI can be used securely on input.
 
 ## Features
 
@@ -215,4 +215,4 @@ Contributions are welcome! Please open an issue or PR.
 
 ## Made with 🇺🇸 American Pride
 
-Built to protect your data with the strength and reliability America is known for!
+Demonstrating that AI can be used securely with proper data protection!
