@@ -1,4 +1,4 @@
 {
-  "installCommand": "cd ../.. && bun install",
-  "buildCommand": "cd ../.. && bun run build && cd packages/ui"
+  "installCommand": "bun install",
+  "buildCommand": "bun run build"
 }
