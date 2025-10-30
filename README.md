@@ -1,4 +1,4 @@
-# Data Redactor 🇺🇸
+# Data Redactor
 
 A powerful, client-side data redaction tool for securing sensitive information before sending to AI systems or external services. Made to prove that AI can be used securely on input.
 
@@ -207,12 +207,13 @@ MIT
 ## Author
 
 **Matthew Goluba**
+- Email: mkgoluba@outlook.com
 - GitHub: [@goobz22](https://github.com/goobz22)
 
 ## Contributing
 
 Contributions are welcome! Please open an issue or PR.
 
-## Made with 🇺🇸 American Pride
+---
 
 Demonstrating that AI can be used securely with proper data protection!
