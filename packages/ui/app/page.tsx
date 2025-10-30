@@ -40,7 +40,7 @@ const subtitleStyle: React.CSSProperties = {
 
 const gridStyle: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 400px), 1fr))',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 500px), 1fr))',
   gap: '20px',
   marginBottom: '20px',
 };
