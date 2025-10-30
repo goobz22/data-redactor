@@ -1,5 +1,5 @@
 {
-  "name": "@data-redactor/core",
+  "name": "data-redactor-core",
   "version": "1.0.0",
   "description": "Deterministic data redaction engine for sensitive information",
   "main": "dist/index.js",

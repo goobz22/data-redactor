@@ -38,8 +38,8 @@ Try it out: **[https://data-redactor-d5qb5uy05-technologies-unlimited-0ef1ee86.v
 
 ## Packages
 
-- **@data-redactor/core** - Core redaction engine with TypeScript support
-- **@data-redactor/ui** - Beautiful Next.js UI with MAGA-inspired patriotic theme
+- **data-redactor-core** - Core redaction engine with TypeScript support
+- **data-redactor-ui** - Beautiful Next.js UI with MAGA-inspired patriotic theme
   - Interactive pattern testing
   - Live format customization
   - JSON config editor with validation
@@ -50,10 +50,10 @@ Try it out: **[https://data-redactor-d5qb5uy05-technologies-unlimited-0ef1ee86.v
 
 ```bash
 # Install the core package
-npm install @data-redactor/core
+npm install data-redactor-core
 
 # Or use bun
-bun add @data-redactor/core
+bun add data-redactor-core
 ```
 
 ## Usage
@@ -61,7 +61,7 @@ bun add @data-redactor/core
 ### Basic Example
 
 ```typescript
-import { DataRedactor } from '@data-redactor/core';
+import { DataRedactor } from 'data-redactor-core';
 
 const redactor = new DataRedactor();
 
@@ -78,7 +78,7 @@ console.log(result.mapping);
 ### Custom Configuration
 
 ```typescript
-import { DataRedactor } from '@data-redactor/core';
+import { DataRedactor } from 'data-redactor-core';
 
 const config = {
   patterns: {
@@ -161,7 +161,7 @@ const result = redactor.redact(text);
 ### Loading Configuration from File (Node.js)
 
 ```typescript
-import { DataRedactor, ConfigLoader } from '@data-redactor/core';
+import { DataRedactor, ConfigLoader } from 'data-redactor-core';
 
 // Load from JSON file
 const config = ConfigLoader.loadFromFile('./my-config.json');

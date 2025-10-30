@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { DataRedactor, DEFAULT_CONFIG } from '@data-redactor/core';
-import type { RedactorConfig } from '@data-redactor/core';
+import { DataRedactor, DEFAULT_CONFIG } from 'data-redactor-core';
+import type { RedactorConfig } from 'data-redactor-core';
 
 const containerStyle: React.CSSProperties = {
   maxWidth: '1400px',
