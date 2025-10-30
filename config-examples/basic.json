@@ -1,0 +1,32 @@
+{
+  "patterns": {
+    "ipAddress": {
+      "enabled": true,
+      "strategy": "token"
+    },
+    "macAddress": {
+      "enabled": true,
+      "strategy": "token"
+    },
+    "email": {
+      "enabled": true,
+      "strategy": "token"
+    },
+    "phone": {
+      "enabled": true,
+      "strategy": "mask"
+    },
+    "ssn": {
+      "enabled": true,
+      "strategy": "mask"
+    },
+    "creditCard": {
+      "enabled": true,
+      "strategy": "mask"
+    },
+    "hostname": {
+      "enabled": true,
+      "strategy": "token"
+    }
+  }
+}

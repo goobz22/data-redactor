@@ -1,0 +1,56 @@
+{
+  "customEntities": {
+    "companyNames": [
+      "Acme Corporation",
+      "Contoso Ltd",
+      "Fabrikam Inc"
+    ],
+    "customerNames": [
+      "John Doe",
+      "Jane Smith",
+      "Bob Johnson"
+    ]
+  },
+  "patterns": {
+    "ipAddress": {
+      "enabled": true,
+      "strategy": "formatPreserving"
+    },
+    "macAddress": {
+      "enabled": true,
+      "strategy": "formatPreserving"
+    },
+    "email": {
+      "enabled": true,
+      "strategy": "formatPreserving"
+    },
+    "phone": {
+      "enabled": true,
+      "strategy": "formatPreserving"
+    },
+    "ssn": {
+      "enabled": true,
+      "strategy": "mask"
+    },
+    "creditCard": {
+      "enabled": true,
+      "strategy": "mask"
+    },
+    "hostname": {
+      "enabled": true,
+      "strategy": "formatPreserving"
+    },
+    "custom": [
+      {
+        "name": "caseId",
+        "regex": "CASE-\\d{6}",
+        "strategy": "token"
+      },
+      {
+        "name": "ticketId",
+        "regex": "TKT-[A-Z]{3}-\\d{4}",
+        "strategy": "token"
+      }
+    ]
+  }
+}

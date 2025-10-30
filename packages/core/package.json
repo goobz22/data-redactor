@@ -1,0 +1,56 @@
+{
+  "name": "@data-redactor/core",
+  "version": "1.0.0",
+  "description": "Deterministic data redaction engine for sensitive information",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "prepublishOnly": "bun run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/goobz22/data-redactor.git"
+  },
+  "bugs": {
+    "url": "https://github.com/goobz22/data-redactor/issues"
+  },
+  "homepage": "https://github.com/goobz22/data-redactor#readme",
+  "author": "Matthew Goluba <https://github.com/goobz22>",
+  "keywords": [
+    "redaction",
+    "data-privacy",
+    "pii",
+    "security",
+    "anonymization",
+    "data-protection",
+    "sensitive-data",
+    "privacy"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.2",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "common-last-names": "^1.1.3",
+    "datasets-female-first-names-en": "^1.0.0",
+    "datasets-male-first-names-en": "^1.0.1"
+  }
+}

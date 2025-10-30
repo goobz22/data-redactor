@@ -1,0 +1,13 @@
+{
+  "name": "data-redactor-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter ui dev",
+    "build": "bun run --filter core build && bun run --filter ui build",
+    "test": "bun test"
+  }
+}
