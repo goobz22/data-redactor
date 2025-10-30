@@ -44,19 +44,19 @@ A powerful, client-side data redaction tool for securing sensitive information b
 
 ## Installation
 
-\`\`\`bash
+```bash
 # Install the core package
 npm install @data-redactor/core
 
 # Or use bun
 bun add @data-redactor/core
-\`\`\`
+```
 
 ## Usage
 
 ### Basic Example
 
-\`\`\`typescript
+```typescript
 import { DataRedactor } from '@data-redactor/core';
 
 const redactor = new DataRedactor();
@@ -69,11 +69,11 @@ console.log(result.redactedText);
 
 console.log(result.mapping);
 // { "john.doe@email.com": "[EMAIL_1]", "555-123-4567": "[PHONE_1]" }
-\`\`\`
+```
 
 ### Custom Configuration
 
-\`\`\`typescript
+```typescript
 import { DataRedactor } from '@data-redactor/core';
 
 const config = {
@@ -90,11 +90,11 @@ const config = {
 };
 
 const redactor = new DataRedactor(config);
-\`\`\`
+```
 
 ### Custom Patterns
 
-\`\`\`typescript
+```typescript
 const config = {
   patterns: {
     custom: [
@@ -112,13 +112,13 @@ const redactor = new DataRedactor(config);
 const text = "Please reference CASE-123456 in your response";
 const result = redactor.redact(text);
 // "Please reference [CASEID_1] in your response"
-\`\`\`
+```
 
 ### Custom Entities
 
 Redact specific values like company names, project names, or customer names:
 
-\`\`\`typescript
+```typescript
 const config = {
   customEntities: {
     companyNames: ["Acme Corp", "Globex Corporation"],
@@ -131,11 +131,11 @@ const redactor = new DataRedactor(config);
 const text = "Acme Corp is working on Project Phoenix with John Smith";
 const result = redactor.redact(text);
 // "[COMPANYNAMES_1] is working on [PROJECTNAMES_1] with [CUSTOMERNAMES_1]"
-\`\`\`
+```
 
 ### Customizing Token Format
 
-\`\`\`typescript
+```typescript
 const config = {
   formatOptions: {
     tokenFormat: '<{TYPE}:{INDEX}>',  // Default: '[{TYPE}_{INDEX}]'
@@ -152,11 +152,11 @@ const redactor = new DataRedactor(config);
 const text = "Email: test@example.com Phone: 555-1234";
 const result = redactor.redact(text);
 // "Email: <EMAIL:1> Phone: ###-####"
-\`\`\`
+```
 
 ### Loading Configuration from File (Node.js)
 
-\`\`\`typescript
+```typescript
 import { DataRedactor, ConfigLoader } from '@data-redactor/core';
 
 // Load from JSON file
@@ -171,11 +171,11 @@ const validation = ConfigLoader.validateConfig(config);
 if (!validation.valid) {
   console.error('Config errors:', validation.errors);
 }
-\`\`\`
+```
 
 ## Development
 
-\`\`\`bash
+```bash
 # Install dependencies
 bun install
 
@@ -186,19 +186,19 @@ bun run build
 # Run UI dev server
 cd packages/ui
 bun run dev
-\`\`\`
+```
 
 ## Architecture
 
 This is a monorepo using Bun workspaces:
 
-\`\`\`
+```
 data-redactor/
 ├── packages/
 │   ├── core/          # Core redaction engine
 │   └── ui/            # Next.js UI application
 └── package.json
-\`\`\`
+```
 
 ## License
 
