@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "cd packages/ui && bun run dev",
     "build": "cd packages/core && bun run build && cd ../ui && bun run build",
+    "postinstall": "cd packages/core && bun run build",
     "test": "bun test"
   }
 }

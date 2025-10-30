@@ -1,5 +1,5 @@
 {
-  "buildCommand": "bun run build",
+  "buildCommand": "cd packages/ui && bun run build",
   "outputDirectory": "packages/ui/.next",
   "installCommand": "bun install"
 }
