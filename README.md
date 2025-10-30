@@ -2,6 +2,10 @@
 
 A powerful, client-side data redaction tool for securing sensitive information before sending to AI systems or external services. Made to prove that AI can be used securely on input.
 
+## 🚀 Live Demo
+
+Try it out: **[https://data-redactor-d5qb5uy05-technologies-unlimited-0ef1ee86.vercel.app/](https://data-redactor-d5qb5uy05-technologies-unlimited-0ef1ee86.vercel.app/)**
+
 ## Features
 
 - **100% Client-Side** - All processing happens in your browser. No data sent to servers.
