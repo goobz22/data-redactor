@@ -6,8 +6,8 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun run --filter ui dev",
-    "build": "bun run --filter core build && bun run --filter ui build",
+    "dev": "cd packages/ui && bun run dev",
+    "build": "cd packages/core && bun run build && cd ../ui && bun run build",
     "test": "bun test"
   }
 }

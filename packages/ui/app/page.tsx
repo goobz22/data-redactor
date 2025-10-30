@@ -186,7 +186,6 @@ const tabStyle: React.CSSProperties = {
   display: 'inline-block',
   padding: '14px 28px',
   cursor: 'pointer',
-  borderBottom: '4px solid transparent',
   marginRight: '8px',
   transition: 'all 0.3s',
   fontWeight: '700',
@@ -200,7 +199,6 @@ const tabStyle: React.CSSProperties = {
 
 const activeTabStyle: React.CSSProperties = {
   ...tabStyle,
-  borderBottom: '4px solid #FFD700',
   color: '#BF0A30',
   fontWeight: '900',
   backgroundColor: '#FFFFFF',
