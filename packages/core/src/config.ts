@@ -1,6 +1,6 @@
 import type { RedactorConfig, PatternConfig } from './types';
 
-const DEFAULT_CONFIG: RedactorConfig = {
+export const DEFAULT_CONFIG: RedactorConfig = {
   formatOptions: {
     tokenFormat: '[{TYPE}_{INDEX}]',
     maskChar: '*',

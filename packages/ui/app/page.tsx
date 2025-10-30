@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { DataRedactor, ConfigLoader } from '@data-redactor/core';
-import type { RedactorConfig } from '@data-redactor/core';
+import { DataRedactor, DEFAULT_CONFIG } from '../../core/dist/index.mjs';
+import type { RedactorConfig } from '../../core/dist/index.d.mts';
 
 const containerStyle: React.CSSProperties = {
   maxWidth: '1400px',
@@ -461,8 +461,7 @@ Contact support@company.com or call 1-555-FLOWERS for assistance.`,
   };
 
   const handleExportDefaultJson = () => {
-    const defaultConfig = ConfigLoader.getDefault();
-    const blob = new Blob([JSON.stringify(defaultConfig, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(DEFAULT_CONFIG, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
