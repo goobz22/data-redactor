@@ -17,7 +17,7 @@ const result = await Bun.build({
   entrypoints: [join(rootDir, 'packages/ui/main.js')],
   outdir: outDir,
   naming: 'main.js',
-  minify: true,
+  minify: false,
   target: 'browser',
 })
 
