@@ -16,8 +16,9 @@
   "type": "module",
   "scripts": {
     "dev": "bun --hot packages/ui/index.html",
-    "build": "bun run build:core",
+    "build": "bun run build:core && bun run build:ui",
     "build:core": "tsup packages/core/src/index.ts --outDir packages/core/dist --format cjs,esm --dts",
+    "build:ui": "bun build-ui.js",
     "postinstall": "bun run build:core",
     "test": "bun test",
     "lint": "eslint .",
