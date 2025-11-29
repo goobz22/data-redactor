@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>Data Redactor - Secure Data Redaction Tool</title>
+  <meta name="description" content="Redact sensitive information before sending to AI systems. All processing happens in your browser.">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <h1>Data Redactor</h1>
+      <p class="subtitle">Redact sensitive information before sending to AI systems</p>
+      <p class="privacy-note">All processing happens in your browser. No data is sent to any server.</p>
+    </header>
+
+    <!-- Config Section -->
+    <div class="config-section">
+      <!-- Tabs -->
+      <div class="tabs">
+        <span id="tab-simple" class="tab active">Simple Config</span>
+        <span id="tab-json" class="tab">JSON Editor</span>
+        <span id="tab-output" class="tab">Output Format</span>
+      </div>
+
+      <!-- Simple Config Tab -->
+      <div id="content-simple">
+        <h2 class="section-title">Built-in Pattern Detection</h2>
+        <div id="pattern-cards" class="checkbox-group"></div>
+        <div class="tip">
+          <strong>Tip:</strong> Switch to JSON Editor tab to add custom entities (company names, customer names) and custom patterns (regex-based detection).
+        </div>
+      </div>
+
+      <!-- JSON Editor Tab -->
+      <div id="content-json" class="hidden">
+        <div class="warning">
+          <strong>Security Note:</strong> Custom configurations are stored in browser memory only. No files are saved to disk unless you explicitly export them.
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <button id="btn-import-json" class="btn">Import JSON</button>
+          <button id="btn-export-edited" class="btn btn-secondary">Export Edited JSON</button>
+          <button id="btn-export-default" class="btn btn-secondary">Export Default JSON</button>
+          <button id="btn-reset" class="btn btn-secondary">Reset to Default</button>
+        </div>
+
+        <label class="label">Configuration JSON</label>
+        <div id="json-error" class="hidden" style="color: #dc3545; font-size: 14px; margin-bottom: 8px;"></div>
+        <textarea id="json-editor" class="json-editor" placeholder="Edit your configuration as JSON..."></textarea>
+
+        <div class="config-guide">
+          <details>
+            <summary>Configuration Guide</summary>
+            <pre>{
+  "customEntities": {
+    "companyNames": ["Acme Corp", "Your Company"],
+    "customerNames": ["John Doe", "Jane Smith"],
+    "projectNames": ["Project Alpha"]
+  },
+  "patterns": {
+    "ipAddress": {
+      "enabled": true,
+      "strategy": "token" | "mask" | "formatPreserving"
+    },
+    "custom": [
+      {
+        "name": "caseId",
+        "regex": "CASE-\\d{6}",
+        "strategy": "token"
+      }
+    ]
+  }
+}</pre>
+          </details>
+        </div>
+      </div>
+
+      <!-- Output Format Tab -->
+      <div id="content-output" class="hidden">
+        <h2 class="section-title" style="color: #BF0A30;">Interactive Pattern Testing & Format Customization</h2>
+        <p style="font-size: 15px; color: #002868; margin-bottom: 20px; font-weight: 600;">
+          Test each pattern with custom input and configure the output format for each strategy.
+        </p>
+        <div id="output-patterns"></div>
+        <div class="info-box">
+          <strong>Interactive Testing:</strong> The outputs shown above are generated in real-time using the core redaction engine. Modify the test input to see how different values are redacted. Each strategy runs independently and produces deterministic results.
+        </div>
+      </div>
+    </div>
+
+    <!-- Input/Output Grid -->
+    <div class="grid">
+      <div class="panel">
+        <div class="panel-header">
+          <label class="label">Input Text</label>
+          <button id="btn-insert-test" class="btn btn-secondary btn-small">Insert Test Data</button>
+        </div>
+        <textarea id="input-text" placeholder="Paste your text with sensitive data here..."></textarea>
+      </div>
+
+      <div class="panel">
+        <label class="label">Redacted Output</label>
+        <textarea id="redacted-text" readonly placeholder="Redacted text will appear here..."></textarea>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="button-container">
+      <button id="btn-redact" class="btn">Redact Data</button>
+      <button id="btn-copy" class="btn btn-secondary">Copy Output</button>
+      <button id="btn-clear" class="btn btn-secondary">Clear All</button>
+    </div>
+
+    <!-- Mapping Panel -->
+    <div id="mapping-container" class="panel hidden">
+      <div class="panel-header">
+        <label class="label">Redaction Mapping (Keep this secure!)</label>
+        <button id="btn-copy-mapping" class="btn btn-small">Copy Mapping</button>
+      </div>
+      <div id="mapping-content" class="mapping"></div>
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
