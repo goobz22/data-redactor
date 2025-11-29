@@ -1,4 +1,4 @@
-import { DataRedactor } from '@data-redactor/core';
+import { DataRedactor } from '../packages/core/src';
 
 // Example 1: Basic usage with default configuration
 const redactor = new DataRedactor();
@@ -17,7 +17,7 @@ console.log('Mapping:', result.mapping);
 // Example 2: Custom configuration
 const customRedactor = new DataRedactor({
   patterns: {
-    ipAddress: { enabled: true, strategy: 'formatPreserving' },
+    ipv4: { enabled: true, strategy: 'formatPreserving' },
     email: { enabled: true, strategy: 'token' },
     phone: { enabled: false, strategy: 'mask' },
   },
@@ -37,7 +37,7 @@ const entityRedactor = new DataRedactor({
     companyNames: ['Acme Corp', 'Contoso'],
   },
   patterns: {
-    ipAddress: { enabled: true, strategy: 'token' },
+    ipv4: { enabled: true, strategy: 'token' },
   },
 });
 

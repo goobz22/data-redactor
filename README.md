@@ -1,50 +1,74 @@
 # Data Redactor
 
-A powerful, client-side data redaction tool for securing sensitive information before sending to AI systems or external services. Made to prove that AI can be used securely on input.
+A powerful, client-side data redaction tool for securing sensitive information before sending to AI systems or external services. Proving that AI can be used securely with proper input sanitization.
 
-## 🚀 Live Demo
+## Live Demo
 
-Try it out: **[https://data-redactor-ui.vercel.app/](https://data-redactor-ui.vercel.app/)**
+**[https://data-redactor-ui.vercel.app/](https://data-redactor-ui.vercel.app/)**
+
+## Overview
+
+Data Redactor is a monorepo containing two packages:
+
+| Package | Description | Published |
+|---------|-------------|-----------|
+| `data-redactor-core` | Core redaction engine | [npm](https://www.npmjs.com/package/data-redactor-core) v1.0.4 |
+| `@data-redactor/ui` | Next.js web interface | [Vercel](https://data-redactor-ui.vercel.app/) |
+
+All redaction happens **100% client-side** - no data is ever sent to a server.
 
 ## Features
 
-- **100% Client-Side** - All processing happens in your browser. No data sent to servers.
-- **Multiple Redaction Strategies**:
-  - **Token** - Replace with customizable tokens like `[EMAIL_1]`, `[IP_1]`
-  - **Mask** - Replace with asterisks while preserving structure `***@***.com`
-  - **Format-Preserving** - Replace with realistic fake data (maintains data type format)
-- **Comprehensive Pattern Detection**:
-  - **IPv4 Addresses** - Detects standard and CIDR notation (`192.168.1.1`, `10.0.0.0/24`)
-  - **IPv6 Addresses** - Full support including compression (`::1`, `2001:0db8:85a3::8a2e:0370:7334`)
-  - **MAC Addresses** - All formats (`:`, `-`, `.` separators)
-  - **Email Addresses** - Standard email detection
-  - **Phone Numbers** - Multiple formats including vanity numbers
-  - **Social Security Numbers** - `###-##-####` format
-  - **Credit Cards** - 13-19 digit cards with Luhn validation
-  - **Credit Card Last 4** - Patterns like "ending in 1234" or "****1234"
-  - **Hostnames & Domains** - FQDN detection
-  - **Ticket Numbers** - Case/ticket ID patterns
-  - **Names** - 8849+ name database (first and last names)
-  - **Custom Patterns** - Define your own regex patterns
-  - **Custom Entities** - Whitelist specific values to redact (company names, project names, etc.)
-- **Advanced Features**:
-  - Deterministic redaction (same value always maps to same token)
-  - Overlap detection and resolution
-  - Custom token format per pattern type
-  - Configurable mask characters
-  - Import/Export JSON configurations
-  - Interactive pattern testing with live preview
-  - Per-pattern format customization
+### Redaction Strategies
+
+| Strategy | Description | Example |
+|----------|-------------|---------|
+| **Token** | Replace with typed placeholders | `john@email.com` → `[EMAIL_1]` |
+| **Mask** | Replace with mask character, preserve structure | `john@email.com` → `****@*****.***` |
+| **Format-Preserving** | Replace with realistic fake data | `john@email.com` → `user42@example.net` |
+
+### Built-in Pattern Detection
+
+| Category | Patterns |
+|----------|----------|
+| **Network** | IPv4 (with CIDR), IPv6, MAC Address, Hostname/FQDN |
+| **Personal** | Email, Phone (incl. vanity), SSN, Names (8,849+ name database) |
+| **Financial** | Credit Card (13-19 digits), Credit Card Last 4 |
+| **Business** | Ticket/Case Numbers |
+
+### Extensibility
+
+- **Custom Patterns** - Define your own regex patterns with configurable strategies
+- **Custom Entities** - Whitelist specific values (company names, project names, etc.)
+
+### Engine Features
+
+- Deterministic redaction (same input → same output within session)
+- Overlap detection and resolution
+- Configurable token format per pattern type
+- Configurable mask character
+- Import/Export JSON configurations
 
 ## Packages
 
-- **data-redactor-core** - Core redaction engine with TypeScript support
-- **data-redactor-ui** - Beautiful Next.js UI with MAGA-inspired patriotic theme
-  - Interactive pattern testing
-  - Live format customization
-  - JSON config editor with validation
-  - Visual output preview for all strategies
-  - Export default or edited configurations
+### data-redactor-core
+
+The core TypeScript redaction engine. Zero browser dependencies - works in Node.js and browser environments.
+
+**Key exports:**
+- `DataRedactor` - Main redaction class
+- `ConfigLoader` - Configuration loading and validation
+- `DEFAULT_CONFIG` - Default configuration with all patterns enabled
+- Pattern classes: `IPv4Pattern`, `EmailPattern`, `NamePattern`, etc.
+- Strategy classes: `TokenStrategy`, `MaskStrategy`, `FormatPreservingStrategy`
+
+### @data-redactor/ui
+
+Next.js 16 web application with three main views:
+
+1. **Simple Config** - Toggle patterns on/off, select strategies per pattern
+2. **JSON Editor** - Full configuration editing with validation
+3. **Output Format** - Interactive per-pattern testing with live preview of all strategies
 
 ## Installation
 
@@ -180,29 +204,41 @@ if (!validation.valid) {
 ## Development
 
 ```bash
-# Install dependencies
-bun install
-
-# Build core package
-cd packages/core
-bun run build
-
-# Run UI dev server
-cd packages/ui
-bun run dev
+bun install        # Install dependencies
+bun run dev        # Run UI dev server
+bun run build      # Build everything
+bun run build:core # Build core only
 ```
 
-## Architecture
-
-This is a monorepo using Bun workspaces:
+## Project Structure
 
 ```
 data-redactor/
+├── package.json        # Single config for everything
+├── tsconfig.json       # TypeScript config
+├── next.config.ts      # Next.js config
 ├── packages/
-│   ├── core/          # Core redaction engine
-│   └── ui/            # Next.js UI application
-└── package.json
+│   ├── core/src/       # Redaction engine source
+│   └── ui/app/         # Next.js UI source
+├── config-examples/
+└── examples/
 ```
+
+## Tech Stack
+
+*Latest versions as of 11/29/2025*
+
+| Category | Package | Version |
+|----------|---------|---------|
+| **Runtime** | Bun | 1.3+ |
+| **Framework** | Next.js | ^16 |
+| **UI** | React | ^19 |
+| **Build** | tsup | ^8 |
+| **Language** | TypeScript | ^5 |
+| **Name Data** | common-last-names | ^1 |
+| | datasets-male-first-names-en | ^1 |
+| | datasets-female-first-names-en | ^1 |
+| **Deploy** | Vercel | - |
 
 ## License
 
@@ -210,14 +246,8 @@ MIT
 
 ## Author
 
-**Matthew Goluba**
-- Email: mkgoluba@outlook.com
-- GitHub: [@goobz22](https://github.com/goobz22)
+**Matthew Goluba** - [@goobz22](https://github.com/goobz22)
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or PR.
-
----
-
-Demonstrating that AI can be used securely with proper data protection!
+Contributions welcome! See [open issues](https://github.com/goobz22/data-redactor/issues) for planned features.

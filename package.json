@@ -1,14 +1,54 @@
 {
-  "name": "data-redactor-monorepo",
-  "version": "1.0.0",
-  "private": true,
-  "workspaces": [
-    "packages/*"
-  ],
+  "name": "data-redactor-core",
+  "version": "1.0.4",
+  "description": "Client-side data redaction tool for securing sensitive information before sending to AI systems",
+  "main": "packages/core/dist/index.js",
+  "module": "packages/core/dist/index.mjs",
+  "types": "packages/core/dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./packages/core/dist/index.d.ts",
+      "import": "./packages/core/dist/index.mjs",
+      "require": "./packages/core/dist/index.js"
+    }
+  },
+  "files": ["packages/core/dist", "README.md"],
+  "type": "module",
   "scripts": {
-    "dev": "cd packages/ui && bun run dev",
-    "build": "cd packages/core && bun run build && cd ../ui && bun run build && cd ../..",
-    "postinstall": "cd packages/core && bun run build",
-    "test": "bun test"
+    "dev": "bun --hot packages/ui/index.html",
+    "build": "bun run build:core",
+    "build:core": "tsup packages/core/src/index.ts --outDir packages/core/dist --format cjs,esm --dts",
+    "postinstall": "bun run build:core",
+    "test": "bun test",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write \"packages/**/*.{ts,js,json,css,md}\"",
+    "prepublishOnly": "bun run build:core"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/goobz22/data-redactor.git"
+  },
+  "bugs": {
+    "url": "https://github.com/goobz22/data-redactor/issues"
+  },
+  "homepage": "https://github.com/goobz22/data-redactor#readme",
+  "author": "Matthew Goluba <mkgoluba@outlook.com> (https://github.com/goobz22)",
+  "license": "MIT",
+  "keywords": ["redaction", "data-privacy", "pii", "security", "anonymization", "ai-safety"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "common-last-names": "^1",
+    "datasets-female-first-names-en": "^1",
+    "datasets-male-first-names-en": "^1"
+  },
+  "devDependencies": {
+    "@types/bun": "^1",
+    "eslint": "^9",
+    "prettier": "^3",
+    "tsup": "^8",
+    "typescript": "^5"
   }
 }
