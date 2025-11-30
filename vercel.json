@@ -1,10 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "framework": null,
-  "buildCommand": "",
+  "buildCommand": "bun run build:ui",
   "outputDirectory": "dist",
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "@vercel/node@5"
+    }
+  },
   "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/:path*" },
     { "source": "/(.*)", "destination": "/$1" }
   ]
 }

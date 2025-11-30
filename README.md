@@ -12,9 +12,9 @@ Data Redactor is a monorepo containing three packages:
 
 | Package | Description | Published |
 |---------|-------------|-----------|
-| `data-redactor-core` | Core redaction engine | [npm](https://www.npmjs.com/package/data-redactor-core) v1.0.5 |
+| `data-redactor-core` | Core redaction engine | [npm](https://www.npmjs.com/package/data-redactor-core) v1.0.7 |
 | `ui` | Vanilla JS web interface | [Vercel](https://data-redactor-ui.vercel.app/) |
-| `api` | Bun REST API for community patterns | Local/Self-hosted |
+| `api` | REST API for community patterns | Vercel Serverless / Self-hosted |
 
 All redaction happens **100% client-side** - no data is ever sent to a server.
 
@@ -297,6 +297,39 @@ if (!validation.valid) {
 }
 ```
 
+## Deployment
+
+### Option 1: Vercel (Recommended)
+
+The project is configured to deploy both the UI and API to Vercel:
+
+1. Push to GitHub
+2. Import project in Vercel
+3. Add environment variable: `MONGODB_URI` (your MongoDB Atlas connection string)
+4. Deploy
+
+Vercel will:
+- Build the UI using `bun run build:ui`
+- Deploy serverless API functions from the `/api` directory
+- Serve static files from `/dist`
+
+### Option 2: Self-Hosted (Bun)
+
+Run the full application with a single Bun server:
+
+```bash
+# Install dependencies
+bun install
+
+# Set environment variable
+export MONGODB_URI="mongodb+srv://..."
+
+# Build and start production server
+bun start
+```
+
+This starts a single server on port 3000 serving both the UI and API.
+
 ## Development
 
 ```bash
@@ -304,6 +337,7 @@ bun install        # Install dependencies (also builds core)
 bun dev            # Run both UI and API dev servers
 bun dev:ui         # Run UI dev server with hot reload
 bun dev:api        # Run API server only
+bun start          # Build and run production server
 bun build          # Build everything (core + UI)
 bun build:core     # Build core library only
 bun build:ui       # Build UI for static deployment
@@ -335,10 +369,16 @@ data-redactor/
 │   │   ├── index.html
 │   │   ├── main.js
 │   │   └── styles.css
-│   └── api/            # REST API server
-│       ├── server.ts   # Main server entry
+│   └── api/            # REST API server (self-hosted)
+│       ├── server.ts   # Bun server entry
 │       ├── routes/     # API route handlers
-│       └── db/         # SQLite database client
+│       └── db/         # MongoDB database client
+├── api/                # Vercel serverless functions
+│   ├── health.ts
+│   ├── presets.ts
+│   ├── feedback.ts
+│   ├── patterns/
+│   └── lib/db.ts       # Shared MongoDB client
 ├── config-examples/
 └── examples/
     └── tampermonkey-redactor.js  # Browser userscript example
@@ -358,7 +398,7 @@ data-redactor/
 | **Name Data** | common-last-names | ^1 |
 | | datasets-male-first-names-en | ^1 |
 | | datasets-female-first-names-en | ^1 |
-| **Deploy** | Vercel (static) | - |
+| **Deploy** | Vercel (UI + Serverless API) | - |
 
 ## License
 
