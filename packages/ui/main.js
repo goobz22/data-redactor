@@ -1854,11 +1854,13 @@ async function fetchCommunityPatterns() {
 function renderCommunityPatterns() {
   if (communityPatterns.length === 0) {
     elements.communityPatternsList.innerHTML = ''
+    elements.communityPatternsList.classList.add('hidden')
     elements.communityEmpty.classList.remove('hidden')
     elements.communityPagination.classList.add('hidden')
     return
   }
 
+  elements.communityPatternsList.classList.remove('hidden')
   elements.communityEmpty.classList.add('hidden')
   elements.communityPatternsList.innerHTML = communityPatterns
     .map(
