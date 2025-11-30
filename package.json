@@ -1,6 +1,6 @@
 {
   "name": "data-redactor-core",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Client-side data redaction tool for securing sensitive information before sending to AI systems",
   "main": "packages/core/dist/index.js",
   "module": "packages/core/dist/index.mjs",

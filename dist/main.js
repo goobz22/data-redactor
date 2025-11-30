@@ -1858,12 +1858,12 @@ async function loadVersion() {
       }
     }
     if (elements.versionBadge) {
-      elements.versionBadge.textContent = "v1.0.7";
+      elements.versionBadge.textContent = "v1.0.8";
     }
   } catch (e) {
     console.warn("Failed to load version:", e);
     if (elements.versionBadge) {
-      elements.versionBadge.textContent = "v1.0.7";
+      elements.versionBadge.textContent = "v1.0.8";
     }
   }
 }

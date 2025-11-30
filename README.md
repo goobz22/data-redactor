@@ -12,7 +12,7 @@ Data Redactor is a monorepo containing three packages:
 
 | Package | Description | Published |
 |---------|-------------|-----------|
-| `data-redactor-core` | Core redaction engine | [npm](https://www.npmjs.com/package/data-redactor-core) v1.0.7 |
+| `data-redactor-core` | Core redaction engine | [npm](https://www.npmjs.com/package/data-redactor-core) v1.0.8 |
 | `ui` | Vanilla JS web interface | [Vercel](https://data-redactor-ui.vercel.app/) |
 | `api` | REST API for community patterns | Vercel Serverless / Self-hosted |
 

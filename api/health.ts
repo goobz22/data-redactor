@@ -12,6 +12,6 @@ export default function handler(_req: VercelRequest, res: VercelResponse) {
   return res.status(200).json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    version: '1.0.7',
+    version: '1.0.8',
   })
 }
