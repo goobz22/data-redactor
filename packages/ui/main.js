@@ -40,10 +40,12 @@ let editingPatternIndex = null // Index of pattern being edited, null if creatin
 // - Self-hosted production (port 3000): use same origin
 // - Dev mode (other ports): use localhost:3001
 const isVercel = window.location.hostname.includes('vercel.app')
-const isProduction = window.location.port === '3000' || window.location.port === ''
-const API_BASE_URL = (isVercel || isProduction)
-  ? window.location.origin  // Vercel or production: same origin
-  : 'http://localhost:3001' // Dev mode: API on port 3001
+const isProduction =
+  window.location.port === '3000' || window.location.port === ''
+const API_BASE_URL =
+  isVercel || isProduction
+    ? window.location.origin // Vercel or production: same origin
+    : 'http://localhost:3001' // Dev mode: API on port 3001
 let communityPatterns = []
 let communityCurrentPage = 1
 let communityTotalPages = 1
@@ -250,40 +252,11 @@ function init() {
   renderPatternCards()
   renderOutputFormatTab()
   updateJsonConfig()
-  loadVersion()
+  if (elements.versionBadge) {
+    elements.versionBadge.textContent = 'v1.0.8'
+  }
   initAccordionState()
   initTabsScroll()
-}
-
-// Load version from package.json
-async function loadVersion() {
-  try {
-    // Try multiple paths since we don't know the exact serving structure
-    const paths = ['/package.json', '../package.json', '../../package.json']
-    for (const path of paths) {
-      try {
-        const response = await fetch(path)
-        if (response.ok) {
-          const pkg = await response.json()
-          if (elements.versionBadge && pkg.version) {
-            elements.versionBadge.textContent = `v${pkg.version}`
-            return
-          }
-        }
-      } catch {
-        continue
-      }
-    }
-    // If all paths fail, show fallback
-    if (elements.versionBadge) {
-      elements.versionBadge.textContent = 'v1.0.8'
-    }
-  } catch (e) {
-    console.warn('Failed to load version:', e)
-    if (elements.versionBadge) {
-      elements.versionBadge.textContent = 'v1.0.8'
-    }
-  }
 }
 
 // Initialize accordion state based on screen size
