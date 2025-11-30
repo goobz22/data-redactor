@@ -1836,36 +1836,11 @@ function init() {
   renderPatternCards();
   renderOutputFormatTab();
   updateJsonConfig();
-  loadVersion();
+  if (elements.versionBadge) {
+    elements.versionBadge.textContent = "v1.0.8";
+  }
   initAccordionState();
   initTabsScroll();
-}
-async function loadVersion() {
-  try {
-    const paths = ["/package.json", "../package.json", "../../package.json"];
-    for (const path of paths) {
-      try {
-        const response = await fetch(path);
-        if (response.ok) {
-          const pkg = await response.json();
-          if (elements.versionBadge && pkg.version) {
-            elements.versionBadge.textContent = `v${pkg.version}`;
-            return;
-          }
-        }
-      } catch {
-        continue;
-      }
-    }
-    if (elements.versionBadge) {
-      elements.versionBadge.textContent = "v1.0.8";
-    }
-  } catch (e) {
-    console.warn("Failed to load version:", e);
-    if (elements.versionBadge) {
-      elements.versionBadge.textContent = "v1.0.8";
-    }
-  }
 }
 function initAccordionState() {
   const accordion = elements.builtinPatternsAccordion;
