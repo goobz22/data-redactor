@@ -71,17 +71,25 @@ async function getDb(): Promise<Db> {
     throw new Error('MONGODB_URI environment variable is not set')
   }
 
+  // If we already have a connected db, return it
+  if (db) {
+    return db
+  }
+
+  // Create new connection
   if (!client) {
     client = new MongoClient(MONGODB_URI)
     await client.connect()
-    db = client.db() // Uses database from connection string (DataRedactor)
     console.log('[DB] MongoDB connected successfully')
-
-    // Create indexes for better query performance
-    await createIndexes()
   }
 
-  return db!
+  // Get database instance
+  db = client.db()
+
+  // Create indexes for better query performance
+  await createIndexes()
+
+  return db
 }
 
 async function createIndexes(): Promise<void> {

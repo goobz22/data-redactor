@@ -6,11 +6,12 @@ import { spawn } from 'bun'
 
 console.log('Starting development servers...\n')
 
-// Start API server
+// Start API server on port 3001 for dev mode
 const api = spawn({
   cmd: ['bun', '--hot', 'packages/api/server.ts'],
   stdout: 'inherit',
   stderr: 'inherit',
+  env: { ...process.env, PORT: '3001' },
 })
 
 // Start UI server

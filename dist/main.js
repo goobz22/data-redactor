@@ -1644,7 +1644,7 @@ var markedTexts = [];
 var fullSampleTexts = [];
 var sampleCount = 1;
 var editingPatternIndex = null;
-var API_BASE_URL = window.location.origin;
+var API_BASE_URL = window.location.port === "3000" ? window.location.origin : "http://localhost:3001";
 var communityPatterns = [];
 var communityCurrentPage = 1;
 var communityTotalPages = 1;

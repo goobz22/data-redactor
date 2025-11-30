@@ -35,8 +35,11 @@ let sampleCount = 1 // Number of sample input fields
 let editingPatternIndex = null // Index of pattern being edited, null if creating new
 
 // Community tab state
-// API is served from the same origin as the UI
-const API_BASE_URL = window.location.origin
+// In dev mode (bun dev), UI runs on a different port than API
+// In production (bun start), both are served from the same origin
+const API_BASE_URL = window.location.port === '3000'
+  ? window.location.origin  // Production: same origin
+  : 'http://localhost:3001' // Dev mode: API on port 3001
 let communityPatterns = []
 let communityCurrentPage = 1
 let communityTotalPages = 1
