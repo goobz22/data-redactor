@@ -35,7 +35,8 @@ let sampleCount = 1 // Number of sample input fields
 let editingPatternIndex = null // Index of pattern being edited, null if creating new
 
 // Community tab state
-const API_BASE_URL = 'http://localhost:3001'
+// API is served from the same origin as the UI
+const API_BASE_URL = window.location.origin
 let communityPatterns = []
 let communityCurrentPage = 1
 let communityTotalPages = 1

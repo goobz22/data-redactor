@@ -18,7 +18,7 @@
     "dev": "bun run dev.ts",
     "dev:ui": "bun --hot packages/ui/index.html",
     "dev:api": "bun --hot packages/api/server.ts",
-    "api": "bun packages/api/server.ts",
+    "start": "bun run build && bun packages/api/server.ts",
     "build": "bun run build:core && bun run build:ui",
     "build:core": "tsup packages/core/src/index.ts --outDir packages/core/dist --format cjs,esm --dts",
     "build:ui": "bun build-ui.js",
@@ -51,6 +51,7 @@
   },
   "devDependencies": {
     "@types/bun": "^1.3.3",
+    "bun-types": "^1.3.3",
     "eslint": "^9",
     "prettier": "^3",
     "tsup": "^8",

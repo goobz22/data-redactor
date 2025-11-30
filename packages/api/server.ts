@@ -2,8 +2,9 @@ import { DataRedactor, getPreset, hasPreset } from '../core/src/index'
 import type { PresetName } from '../core/src/index'
 import { handleFeedback } from './routes/feedback'
 import { handlePatterns } from './routes/patterns'
+import { join, extname } from 'node:path'
 
-const PORT = process.env.PORT || 3001
+const PORT = Bun.env.PORT || 3000
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,11 +12,30 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }
 
+// MIME types for static files
+const mimeTypes: Record<string, string> = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+}
+
+// Resolve paths relative to project root
+const projectRoot = join(import.meta.dir, '../..')
+const distDir = join(projectRoot, 'dist')
+
 const server = Bun.serve({
   port: PORT,
   async fetch(req) {
     const url = new URL(req.url)
-    const path = url.pathname
+    const urlPath = url.pathname
 
     // CORS preflight
     if (req.method === 'OPTIONS') {
@@ -23,8 +43,12 @@ const server = Bun.serve({
     }
 
     try {
+      // ===================
+      // API ROUTES
+      // ===================
+
       // Health check
-      if (path === '/api/health' && req.method === 'GET') {
+      if (urlPath === '/api/health' && req.method === 'GET') {
         return Response.json(
           {
             status: 'ok',
@@ -36,22 +60,22 @@ const server = Bun.serve({
       }
 
       // Redaction endpoint
-      if (path === '/api/redact' && req.method === 'POST') {
+      if (urlPath === '/api/redact' && req.method === 'POST') {
         return handleRedact(req)
       }
 
       // Feedback endpoints
-      if (path === '/api/feedback') {
+      if (urlPath === '/api/feedback') {
         return handleFeedback(req, corsHeaders)
       }
 
       // Community patterns endpoints
-      if (path.startsWith('/api/patterns')) {
+      if (urlPath.startsWith('/api/patterns')) {
         return handlePatterns(req, corsHeaders)
       }
 
       // Presets endpoint
-      if (path === '/api/presets' && req.method === 'GET') {
+      if (urlPath === '/api/presets' && req.method === 'GET') {
         return Response.json(
           {
             presets: [
@@ -66,9 +90,37 @@ const server = Bun.serve({
         )
       }
 
+      // ===================
+      // STATIC FILE SERVING
+      // ===================
+
+      // Serve static files from dist directory
+      const filePath = urlPath === '/' ? '/index.html' : urlPath
+      const fullPath = join(distDir, filePath)
+
+      // Check if file exists
+      const file = Bun.file(fullPath)
+      if (await file.exists()) {
+        const ext = extname(filePath)
+        const contentType = mimeTypes[ext] || 'application/octet-stream'
+        return new Response(file, {
+          headers: { 'Content-Type': contentType },
+        })
+      }
+
+      // SPA fallback - serve index.html for non-API routes
+      if (!urlPath.startsWith('/api/')) {
+        const indexFile = Bun.file(join(distDir, 'index.html'))
+        if (await indexFile.exists()) {
+          return new Response(indexFile, {
+            headers: { 'Content-Type': 'text/html' },
+          })
+        }
+      }
+
       // 404 for unknown routes
       return Response.json(
-        { error: 'Not found', path },
+        { error: 'Not found', path: urlPath },
         { status: 404, headers: corsHeaders }
       )
     } catch (error) {
@@ -147,7 +199,10 @@ async function handleRedact(req: Request): Promise<Response> {
 
 console.log(`
 ╔═══════════════════════════════════════════════════════════╗
-║           Data Redactor API Server                        ║
+║           Data Redactor Server                            ║
+╠═══════════════════════════════════════════════════════════╣
+║  UI:     http://localhost:${server.port}                          ║
+║  API:    http://localhost:${server.port}/api                      ║
 ╠═══════════════════════════════════════════════════════════╣
 ║  Endpoints:                                               ║
 ║    GET  /api/health       - Health check                  ║
@@ -159,6 +214,4 @@ console.log(`
 ║    POST /api/patterns     - Submit pattern                ║
 ║    GET  /api/patterns/:id - Get pattern details           ║
 ╚═══════════════════════════════════════════════════════════╝
-
-Server running at http://localhost:${server.port}
 `)

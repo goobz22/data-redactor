@@ -12,12 +12,14 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "allowJs": true,
+    "types": ["bun-types"],
     "paths": {
       "@core/*": ["./packages/core/src/*"]
     }
   },
   "include": [
     "packages/core/src/**/*",
+    "packages/api/**/*",
     "examples/**/*"
   ],
   "exclude": ["node_modules", "dist", "packages/ui"]
