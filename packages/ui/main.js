@@ -268,12 +268,12 @@ async function loadVersion() {
     }
     // If all paths fail, show fallback
     if (elements.versionBadge) {
-      elements.versionBadge.textContent = 'v1.0.4'
+      elements.versionBadge.textContent = 'v1.0.5'
     }
   } catch (e) {
     console.warn('Failed to load version:', e)
     if (elements.versionBadge) {
-      elements.versionBadge.textContent = 'v1.0.4'
+      elements.versionBadge.textContent = 'v1.0.5'
     }
   }
 }

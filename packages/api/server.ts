@@ -29,7 +29,7 @@ const server = Bun.serve({
           {
             status: 'ok',
             timestamp: new Date().toISOString(),
-            version: '1.0.4',
+            version: '1.0.5',
           },
           { headers: corsHeaders }
         )
