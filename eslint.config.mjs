@@ -6,6 +6,8 @@ const eslintConfig = [
       'node_modules/**',
       'dist/**',
       'packages/core/dist/**',
+      'packages/core/src/**/*.ts',
+      'packages/api/**/*.ts',
     ],
   },
   js.configs.recommended,
@@ -21,6 +23,11 @@ const eslintConfig = [
         FileReader: 'readonly',
         Blob: 'readonly',
         URL: 'readonly',
+        Event: 'readonly',
+        localStorage: 'readonly',
+        setTimeout: 'readonly',
+        confirm: 'readonly',
+        fetch: 'readonly',
       },
     },
     rules: {
@@ -28,6 +35,27 @@ const eslintConfig = [
       'no-duplicate-imports': 'error',
       'linebreak-style': 'off',
       'eol-last': 'off',
+    },
+  },
+  // Bun-specific files
+  {
+    files: ['build-ui.js', 'packages/api/**/*.ts'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        Bun: 'readonly',
+      },
+    },
+  },
+  // Tampermonkey userscript
+  {
+    files: ['examples/tampermonkey-redactor.js'],
+    languageOptions: {
+      globals: {
+        GM_addStyle: 'readonly',
+        GM_getValue: 'readonly',
+        GM_setValue: 'readonly',
+      },
     },
   },
 ]

@@ -8,12 +8,13 @@ A powerful, client-side data redaction tool for securing sensitive information b
 
 ## Overview
 
-Data Redactor is a monorepo containing two packages:
+Data Redactor is a monorepo containing three packages:
 
 | Package | Description | Published |
 |---------|-------------|-----------|
-| `data-redactor-core` | Core redaction engine | [npm](https://www.npmjs.com/package/data-redactor-core) v1.0.4 |
-| `@data-redactor/ui` | Next.js web interface | [Vercel](https://data-redactor-ui.vercel.app/) |
+| `data-redactor-core` | Core redaction engine | [npm](https://www.npmjs.com/package/data-redactor-core) v1.0.5 |
+| `ui` | Vanilla JS web interface | [Vercel](https://data-redactor-ui.vercel.app/) |
+| `api` | Bun REST API for community patterns | Local/Self-hosted |
 
 All redaction happens **100% client-side** - no data is ever sent to a server.
 
@@ -36,10 +37,44 @@ All redaction happens **100% client-side** - no data is ever sent to a server.
 | **Financial** | Credit Card (13-19 digits), Credit Card Last 4 |
 | **Business** | Ticket/Case Numbers |
 
+### Pattern Builder (New in v1.0.5)
+
+Visual tool to create custom regex patterns from sample data:
+
+- **Mark Selection** - Highlight text in your sample to mark what should be matched
+- **Multi-Sample Support** - Add multiple samples to refine pattern accuracy
+- **Auto-Generation** - Automatically generates optimized regex from marked text
+- **Pattern Explanation** - Human-readable breakdown of what the pattern matches
+- **Live Testing** - Test generated patterns against sample data in real-time
+- **One-Click Add** - Add patterns directly to your configuration
+
+### Community Patterns (New in v1.0.5)
+
+Browse, share, and vote on community-contributed regex patterns:
+
+- **Pattern Library** - Discover patterns submitted by other users
+- **Voting System** - Upvote/downvote patterns to help surface the best ones
+- **Category Filtering** - Filter by identifier, financial, healthcare, infrastructure, personal
+- **One-Click Use** - Add community patterns to your configuration instantly
+- **Submit Your Own** - Share useful patterns with the community
+
+### Presets
+
+Pre-configured pattern sets for common use cases:
+
+| Preset | Description |
+|--------|-------------|
+| `strict-ai` | Maximum redaction for AI/LLM inputs |
+| `minimal` | Light redaction, preserves readability |
+| `logs` | Optimized for log file sanitization |
+| `financial` | Focus on financial data (accounts, cards) |
+| `healthcare` | HIPAA-focused (MRN, NPI, patient info) |
+
 ### Extensibility
 
 - **Custom Patterns** - Define your own regex patterns with configurable strategies
 - **Custom Entities** - Whitelist specific values (company names, project names, etc.)
+- **Regex Builder** - Programmatic pattern generation from samples
 
 ### Engine Features
 
@@ -59,16 +94,44 @@ The core TypeScript redaction engine. Zero browser dependencies - works in Node.
 - `DataRedactor` - Main redaction class
 - `ConfigLoader` - Configuration loading and validation
 - `DEFAULT_CONFIG` - Default configuration with all patterns enabled
+- `getPreset()` / `hasPreset()` - Preset configuration helpers
+- `generateFromSample()` / `refineFromSamples()` - Regex builder utilities
 - Pattern classes: `IPv4Pattern`, `EmailPattern`, `NamePattern`, etc.
 - Strategy classes: `TokenStrategy`, `MaskStrategy`, `FormatPreservingStrategy`
 
-### @data-redactor/ui
+### UI
 
-Next.js 16 web application with three main views:
+Vanilla JavaScript web application (no framework dependencies) with five main views:
 
-1. **Simple Config** - Toggle patterns on/off, select strategies per pattern
+1. **Pattern Detection** - Toggle patterns on/off, select strategies per pattern
 2. **JSON Editor** - Full configuration editing with validation
 3. **Output Format** - Interactive per-pattern testing with live preview of all strategies
+4. **Pattern Builder** - Visual tool to create custom regex patterns from sample data
+5. **Community** - Browse and use community-contributed patterns
+
+**UI Features:**
+- Mobile-responsive design with optimized touch targets
+- Collapsible accordion sections for better organization
+- Dark mode support
+- Keyboard shortcuts for common actions
+
+### API Server
+
+Bun-powered REST API for community patterns and feedback:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Health check |
+| `/api/redact` | POST | Redact text (server-side option) |
+| `/api/presets` | GET | List available presets |
+| `/api/patterns` | GET | List community patterns |
+| `/api/patterns` | POST | Submit a new pattern |
+| `/api/patterns/:id` | GET | Get pattern details |
+| `/api/patterns/:id/vote` | POST | Vote on a pattern |
+| `/api/patterns/:id/use` | POST | Mark pattern as used |
+| `/api/feedback` | GET/POST | Feedback collection |
+
+**Database:** SQLite (via Bun's built-in SQLite) - no external database required.
 
 ## Installation
 
@@ -97,6 +160,18 @@ console.log(result.redactedText);
 
 console.log(result.mapping);
 // { "john.doe@email.com": "[EMAIL_1]", "555-123-4567": "[PHONE_1]" }
+```
+
+### Using Presets
+
+```typescript
+import { DataRedactor, getPreset } from 'data-redactor-core';
+
+// Use a preset configuration
+const redactor = new DataRedactor(getPreset('strict-ai'));
+
+// Or for healthcare compliance
+const hipaaRedactor = new DataRedactor(getPreset('healthcare'));
 ```
 
 ### Custom Configuration
@@ -140,6 +215,27 @@ const redactor = new DataRedactor(config);
 const text = "Please reference CASE-123456 in your response";
 const result = redactor.redact(text);
 // "Please reference [CASEID_1] in your response"
+```
+
+### Regex Builder (Programmatic)
+
+```typescript
+import { generateFromSample, refineFromSamples } from 'data-redactor-core';
+
+// Generate pattern from a single sample
+const result = generateFromSample('ABC-12345', {
+  wordBoundaries: true,
+  caseInsensitive: false
+});
+
+console.log(result.regex);
+// "[A-Z]{3}-\\d{5}"
+
+// Refine with multiple samples
+const refined = refineFromSamples(
+  ['ABC-12345', 'XYZ-67890', 'DEF-11111'],
+  { wordBoundaries: true }
+);
 ```
 
 ### Custom Entities
@@ -204,24 +300,48 @@ if (!validation.valid) {
 ## Development
 
 ```bash
-bun install        # Install dependencies
-bun run dev        # Run UI dev server
-bun run build      # Build everything
-bun run build:core # Build core only
+bun install        # Install dependencies (also builds core)
+bun dev            # Run both UI and API dev servers
+bun dev:ui         # Run UI dev server with hot reload
+bun dev:api        # Run API server only
+bun build          # Build everything (core + UI)
+bun build:core     # Build core library only
+bun build:ui       # Build UI for static deployment
+bun lint           # Run ESLint
+bun typecheck      # Run TypeScript type checking
+bun format         # Run Prettier
 ```
 
 ## Project Structure
 
 ```
 data-redactor/
-├── package.json        # Single config for everything
+├── package.json        # Root package config
 ├── tsconfig.json       # TypeScript config
-├── next.config.ts      # Next.js config
+├── build-ui.js         # UI bundler script (Bun.build)
+├── dev.ts              # Combined dev server runner
+├── vercel.json         # Vercel deployment config
+├── dist/               # Built UI (static files for deployment)
 ├── packages/
-│   ├── core/src/       # Redaction engine source
-│   └── ui/app/         # Next.js UI source
+│   ├── core/src/       # Redaction engine source (TypeScript)
+│   │   ├── index.ts    # Main exports
+│   │   ├── engine.ts   # Core redaction logic
+│   │   ├── config.ts   # Configuration handling
+│   │   ├── presets.ts  # Preset configurations
+│   │   ├── patterns/   # Pattern implementations
+│   │   ├── regex-builder/  # Pattern generation from samples
+│   │   └── scenarios/  # Context-aware redaction scenarios
+│   ├── ui/             # Vanilla JS UI source
+│   │   ├── index.html
+│   │   ├── main.js
+│   │   └── styles.css
+│   └── api/            # REST API server
+│       ├── server.ts   # Main server entry
+│       ├── routes/     # API route handlers
+│       └── db/         # SQLite database client
 ├── config-examples/
 └── examples/
+    └── tampermonkey-redactor.js  # Browser userscript example
 ```
 
 ## Tech Stack
@@ -231,14 +351,14 @@ data-redactor/
 | Category | Package | Version |
 |----------|---------|---------|
 | **Runtime** | Bun | 1.3+ |
-| **Framework** | Next.js | ^16 |
-| **UI** | React | ^19 |
-| **Build** | tsup | ^8 |
-| **Language** | TypeScript | ^5 |
+| **UI** | Vanilla JavaScript | ES2022 |
+| **Build** | tsup (core), Bun.build (UI) | ^8 |
+| **Language** | TypeScript (core) | ^5 |
+| **Database** | Bun SQLite (built-in) | - |
 | **Name Data** | common-last-names | ^1 |
 | | datasets-male-first-names-en | ^1 |
 | | datasets-female-first-names-en | ^1 |
-| **Deploy** | Vercel | - |
+| **Deploy** | Vercel (static) | - |
 
 ## License
 
@@ -251,3 +371,10 @@ MIT
 ## Contributing
 
 Contributions welcome! See [open issues](https://github.com/goobz22/data-redactor/issues) for planned features.
+
+### Ways to Contribute
+
+- **Submit Patterns** - Use the Pattern Builder to create and submit useful patterns
+- **Vote on Patterns** - Help surface the best community patterns
+- **Report Issues** - Found a bug or false positive? Open an issue
+- **Feature Requests** - Ideas for new patterns or features? We'd love to hear them

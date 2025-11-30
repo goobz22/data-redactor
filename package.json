@@ -1,6 +1,6 @@
 {
   "name": "data-redactor-core",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Client-side data redaction tool for securing sensitive information before sending to AI systems",
   "main": "packages/core/dist/index.js",
   "module": "packages/core/dist/index.mjs",
@@ -15,7 +15,10 @@
   "files": ["packages/core/dist", "README.md"],
   "type": "module",
   "scripts": {
-    "dev": "bun --hot packages/ui/index.html",
+    "dev": "bun run dev.ts",
+    "dev:ui": "bun --hot packages/ui/index.html",
+    "dev:api": "bun --hot packages/api/server.ts",
+    "api": "bun packages/api/server.ts",
     "build": "bun run build:core && bun run build:ui",
     "build:core": "tsup packages/core/src/index.ts --outDir packages/core/dist --format cjs,esm --dts",
     "build:ui": "bun build-ui.js",

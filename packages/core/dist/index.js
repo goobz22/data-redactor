@@ -71,7 +71,25 @@ var DEFAULT_CONFIG = {
       // No default regex - built dynamically from name databases (8849 names)
       // Custom regex can be provided if needed
     },
+    uuid: {
+      enabled: true,
+      strategy: "token",
+      regex: "\\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\b"
+    },
+    filePath: {
+      enabled: true,
+      strategy: "token",
+      regex: '(?:[A-Za-z]:\\\\(?:[^\\\\\\/:*?"<>|\\r\\n]+\\\\)*[^\\\\\\/:*?"<>|\\r\\n]*)|(?:\\/(?:[^\\s\\/\\0]+\\/)+[^\\s\\/\\0]*|\\/[^\\s\\/\\0]+)'
+    },
     custom: []
+  },
+  scenarios: {
+    authHeader: { enabled: true, strategy: "token" },
+    password: { enabled: true, strategy: "token" },
+    apiKey: { enabled: true, strategy: "token" },
+    connectionString: { enabled: true, strategy: "token" },
+    privateKey: { enabled: true, strategy: "token" },
+    awsCredentials: { enabled: true, strategy: "token" }
   },
   customEntities: {},
   testData: `Support Ticket #12345
@@ -91,6 +109,20 @@ Network Details:
 - Gateway: 10.0.0.1
 - DNS Server: 8.8.8.8
 - Hostname: mail.example.com
+
+System Details:
+- Request ID: 550e8400-e29b-41d4-a716-446655440000
+- Session UUID: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+- Config File: C:\\Users\\admin\\AppData\\config.json
+- Log Path: /var/log/application/error.log
+- Script: /home/user/scripts/deploy.sh
+
+Credentials (Context-Aware):
+- Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
+- password = super_secret_123
+- api_key: sk-1234567890abcdef
+- DATABASE_URL: postgres://user:p@ssw0rd@localhost:5432/mydb
+- AWS_SECRET_ACCESS_KEY = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 
 Payment Information:
 - Primary Card: 4532-1234-5678-9010
@@ -411,6 +443,20 @@ var TicketNumberPattern = class extends BasePattern {
   }
 };
 
+// packages/core/src/patterns/system.ts
+var UUIDPattern = class extends BasePattern {
+  constructor(strategy = "token", enabled = true) {
+    const regex = /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/g;
+    super("uuid", regex, strategy, enabled);
+  }
+};
+var FilePathPattern = class extends BasePattern {
+  constructor(strategy = "token", enabled = true) {
+    const regex = /(?:[A-Za-z]:\\(?:[^\\\/:*?"<>|\r\n]+\\)*[^\\\/:*?"<>|\r\n]*)|(?:\/(?:[^\s\/\0]+\/)+[^\s\/\0]*|\/[^\s\/\0]+)/g;
+    super("filePath", regex, strategy, enabled);
+  }
+};
+
 // packages/core/src/strategies/base.ts
 var RedactionContext = class {
   valueMap = /* @__PURE__ */ new Map();
@@ -583,10 +629,123 @@ var FormatPreservingStrategy = class {
   }
 };
 
+// packages/core/src/scenarios/base.ts
+var BaseScenario = class {
+  name;
+  pattern;
+  captureGroup;
+  strategy;
+  enabled;
+  constructor(name, pattern, captureGroup = 1, strategy = "token", enabled = true) {
+    this.name = name;
+    this.pattern = pattern;
+    this.captureGroup = captureGroup;
+    this.strategy = strategy;
+    this.enabled = enabled;
+  }
+  findAll(text) {
+    if (!this.enabled) return [];
+    const matches = [];
+    const regex = new RegExp(
+      this.pattern.source,
+      "g" + this.pattern.flags.replace("g", "")
+    );
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const capturedValue = match[this.captureGroup];
+      if (capturedValue) {
+        const fullMatch = match[0];
+        const captureStart = match.index + fullMatch.indexOf(capturedValue);
+        matches.push({
+          value: capturedValue,
+          start: captureStart,
+          end: captureStart + capturedValue.length,
+          type: this.name,
+          strategy: this.strategy
+        });
+      }
+    }
+    return matches;
+  }
+  setStrategy(strategy) {
+    this.strategy = strategy;
+  }
+  setEnabled(enabled) {
+    this.enabled = enabled;
+  }
+};
+var AuthorizationHeaderScenario = class extends BaseScenario {
+  constructor(strategy = "token", enabled = true) {
+    super(
+      "authHeader",
+      /Authorization:\s*(?:Bearer|Basic)\s+([^\s\r\n]+)/gi,
+      1,
+      strategy,
+      enabled
+    );
+  }
+};
+var PasswordScenario = class extends BaseScenario {
+  constructor(strategy = "token", enabled = true) {
+    super(
+      "password",
+      /(?:password|passwd|pwd)\s*[:=]\s*["']?([^\s"'\r\n,;]+)["']?/gi,
+      1,
+      strategy,
+      enabled
+    );
+  }
+};
+var ApiKeyScenario = class extends BaseScenario {
+  constructor(strategy = "token", enabled = true) {
+    super(
+      "apiKey",
+      /(?:api[_-]?key|apikey|secret[_-]?key|access[_-]?key)\s*[:=]\s*["']?([^\s"'\r\n,;]+)["']?/gi,
+      1,
+      strategy,
+      enabled
+    );
+  }
+};
+var ConnectionStringScenario = class extends BaseScenario {
+  constructor(strategy = "token", enabled = true) {
+    super(
+      "connectionString",
+      /(?:mongodb|postgres|mysql|redis|amqp):\/\/[^:]+:([^@]+)@/gi,
+      1,
+      strategy,
+      enabled
+    );
+  }
+};
+var PrivateKeyScenario = class extends BaseScenario {
+  constructor(strategy = "token", enabled = true) {
+    super(
+      "privateKey",
+      /(-----BEGIN (?:RSA |EC |DSA )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |DSA )?PRIVATE KEY-----)/gi,
+      1,
+      strategy,
+      enabled
+    );
+  }
+};
+var AWSCredentialsScenario = class extends BaseScenario {
+  constructor(strategy = "token", enabled = true) {
+    super(
+      "awsCredentials",
+      /(?:aws[_-]?(?:access[_-]?key[_-]?id|secret[_-]?access[_-]?key))\s*[:=]\s*["']?([A-Za-z0-9\/+=]+)["']?/gi,
+      1,
+      strategy,
+      enabled
+    );
+  }
+};
+
 // packages/core/src/engine.ts
 var DataRedactor = class {
   config;
   patterns = [];
+  scenarios = [];
   context;
   strategies;
   constructor(config) {
@@ -611,6 +770,7 @@ var DataRedactor = class {
     ]);
     this.context = new RedactionContext();
     this.initializePatterns();
+    this.initializeScenarios();
   }
   initializePatterns() {
     const { patterns } = this.config;
@@ -838,6 +998,46 @@ var DataRedactor = class {
         );
       }
     }
+    if (patterns.uuid) {
+      if (patterns.uuid.regex) {
+        const regex = new RegExp(patterns.uuid.regex, patterns.uuid.flags || "");
+        this.patterns.push(
+          new BasePattern(
+            "uuid",
+            regex,
+            patterns.uuid.strategy,
+            patterns.uuid.enabled
+          )
+        );
+      } else {
+        this.patterns.push(
+          new UUIDPattern(patterns.uuid.strategy, patterns.uuid.enabled)
+        );
+      }
+    }
+    if (patterns.filePath) {
+      if (patterns.filePath.regex) {
+        const regex = new RegExp(
+          patterns.filePath.regex,
+          patterns.filePath.flags || ""
+        );
+        this.patterns.push(
+          new BasePattern(
+            "filePath",
+            regex,
+            patterns.filePath.strategy,
+            patterns.filePath.enabled
+          )
+        );
+      } else {
+        this.patterns.push(
+          new FilePathPattern(
+            patterns.filePath.strategy,
+            patterns.filePath.enabled
+          )
+        );
+      }
+    }
     if (patterns.custom) {
       patterns.custom.forEach((customPattern) => {
         const regex = new RegExp(customPattern.regex, customPattern.flags || "");
@@ -863,6 +1063,55 @@ var DataRedactor = class {
       });
     }
   }
+  initializeScenarios() {
+    const { scenarios } = this.config;
+    if (!scenarios) return;
+    if (scenarios.authHeader) {
+      this.scenarios.push(
+        new AuthorizationHeaderScenario(
+          scenarios.authHeader.strategy,
+          scenarios.authHeader.enabled
+        )
+      );
+    }
+    if (scenarios.password) {
+      this.scenarios.push(
+        new PasswordScenario(
+          scenarios.password.strategy,
+          scenarios.password.enabled
+        )
+      );
+    }
+    if (scenarios.apiKey) {
+      this.scenarios.push(
+        new ApiKeyScenario(scenarios.apiKey.strategy, scenarios.apiKey.enabled)
+      );
+    }
+    if (scenarios.connectionString) {
+      this.scenarios.push(
+        new ConnectionStringScenario(
+          scenarios.connectionString.strategy,
+          scenarios.connectionString.enabled
+        )
+      );
+    }
+    if (scenarios.privateKey) {
+      this.scenarios.push(
+        new PrivateKeyScenario(
+          scenarios.privateKey.strategy,
+          scenarios.privateKey.enabled
+        )
+      );
+    }
+    if (scenarios.awsCredentials) {
+      this.scenarios.push(
+        new AWSCredentialsScenario(
+          scenarios.awsCredentials.strategy,
+          scenarios.awsCredentials.enabled
+        )
+      );
+    }
+  }
   redact(text) {
     console.log(
       "[DataRedactor] redact() called with text:",
@@ -882,6 +1131,19 @@ var DataRedactor = class {
         console.log(
           "[DataRedactor] Pattern",
           pattern.name,
+          "found",
+          matches.length,
+          "matches"
+        );
+        allMatches.push(...matches);
+      }
+    });
+    this.scenarios.forEach((scenario) => {
+      if (scenario.enabled) {
+        const matches = scenario.findAll(text);
+        console.log(
+          "[DataRedactor] Scenario",
+          scenario.name,
           "found",
           matches.length,
           "matches"
@@ -941,18 +1203,749 @@ var DataRedactor = class {
       ["formatPreserving", new FormatPreservingStrategy(formatOptions)]
     ]);
     this.patterns = [];
+    this.scenarios = [];
     this.initializePatterns();
+    this.initializeScenarios();
     this.reset();
   }
 };
+
+// packages/core/src/presets.ts
+var PRESETS = {
+  /**
+   * Strict AI Compliance Preset
+   * Maximum protection for data sent to AI/LLM systems
+   * Enables all patterns and scenarios with token replacement
+   */
+  "strict-ai": {
+    formatOptions: {
+      tokenFormat: "[REDACTED_{TYPE}_{INDEX}]",
+      maskChar: "*",
+      preserveStructure: false
+    },
+    patterns: {
+      // All PII
+      email: { enabled: true, strategy: "token" },
+      phone: { enabled: true, strategy: "token" },
+      ssn: { enabled: true, strategy: "token" },
+      name: { enabled: true, strategy: "token" },
+      // All Financial
+      creditCard: { enabled: true, strategy: "token" },
+      creditCardLast4: { enabled: true, strategy: "token" },
+      // All System
+      uuid: { enabled: true, strategy: "token" },
+      filePath: { enabled: true, strategy: "token" },
+      ipv4: { enabled: true, strategy: "token" },
+      ipv6: { enabled: true, strategy: "token" },
+      macAddress: { enabled: true, strategy: "token" },
+      hostname: { enabled: true, strategy: "token" },
+      // Business
+      ticketNumber: { enabled: true, strategy: "token" }
+    },
+    scenarios: {
+      authHeader: { enabled: true, strategy: "token" },
+      password: { enabled: true, strategy: "token" },
+      apiKey: { enabled: true, strategy: "token" },
+      connectionString: { enabled: true, strategy: "token" },
+      privateKey: { enabled: true, strategy: "token" },
+      awsCredentials: { enabled: true, strategy: "token" }
+    }
+  },
+  /**
+   * Minimal Preset
+   * Basic PII protection - only email and phone
+   */
+  minimal: {
+    formatOptions: {
+      tokenFormat: "[{TYPE}_{INDEX}]",
+      maskChar: "*",
+      preserveStructure: true
+    },
+    patterns: {
+      email: { enabled: true, strategy: "token" },
+      phone: { enabled: true, strategy: "token" },
+      ssn: { enabled: false, strategy: "token" },
+      name: { enabled: false, strategy: "token" },
+      creditCard: { enabled: false, strategy: "token" },
+      creditCardLast4: { enabled: false, strategy: "token" },
+      uuid: { enabled: false, strategy: "token" },
+      filePath: { enabled: false, strategy: "token" },
+      ipv4: { enabled: false, strategy: "token" },
+      ipv6: { enabled: false, strategy: "token" },
+      macAddress: { enabled: false, strategy: "token" },
+      hostname: { enabled: false, strategy: "token" },
+      ticketNumber: { enabled: false, strategy: "token" }
+    },
+    scenarios: {
+      authHeader: { enabled: false, strategy: "token" },
+      password: { enabled: false, strategy: "token" },
+      apiKey: { enabled: false, strategy: "token" },
+      connectionString: { enabled: false, strategy: "token" },
+      privateKey: { enabled: false, strategy: "token" },
+      awsCredentials: { enabled: false, strategy: "token" }
+    }
+  },
+  /**
+   * Logs Preset
+   * Optimized for log file redaction
+   * Uses format-preserving for IPs/hostnames to maintain log readability
+   */
+  logs: {
+    formatOptions: {
+      tokenFormat: "[{TYPE}_{INDEX}]",
+      maskChar: "*",
+      preserveStructure: true
+    },
+    patterns: {
+      email: { enabled: true, strategy: "token" },
+      phone: { enabled: false, strategy: "token" },
+      ssn: { enabled: false, strategy: "token" },
+      name: { enabled: false, strategy: "token" },
+      creditCard: { enabled: false, strategy: "token" },
+      creditCardLast4: { enabled: false, strategy: "token" },
+      uuid: { enabled: true, strategy: "token" },
+      filePath: { enabled: true, strategy: "token" },
+      ipv4: { enabled: true, strategy: "formatPreserving" },
+      ipv6: { enabled: true, strategy: "formatPreserving" },
+      macAddress: { enabled: true, strategy: "formatPreserving" },
+      hostname: { enabled: true, strategy: "formatPreserving" },
+      ticketNumber: { enabled: true, strategy: "token" }
+    },
+    scenarios: {
+      authHeader: { enabled: true, strategy: "token" },
+      password: { enabled: true, strategy: "token" },
+      apiKey: { enabled: true, strategy: "token" },
+      connectionString: { enabled: true, strategy: "token" },
+      privateKey: { enabled: true, strategy: "token" },
+      awsCredentials: { enabled: true, strategy: "token" }
+    }
+  },
+  /**
+   * Financial Preset
+   * Focus on financial data protection
+   */
+  financial: {
+    formatOptions: {
+      tokenFormat: "[{TYPE}_{INDEX}]",
+      maskChar: "*",
+      preserveStructure: true
+    },
+    patterns: {
+      email: { enabled: true, strategy: "token" },
+      phone: { enabled: true, strategy: "token" },
+      ssn: { enabled: true, strategy: "token" },
+      name: { enabled: true, strategy: "token" },
+      creditCard: { enabled: true, strategy: "mask" },
+      creditCardLast4: { enabled: true, strategy: "token" },
+      uuid: { enabled: false, strategy: "token" },
+      filePath: { enabled: false, strategy: "token" },
+      ipv4: { enabled: false, strategy: "token" },
+      ipv6: { enabled: false, strategy: "token" },
+      macAddress: { enabled: false, strategy: "token" },
+      hostname: { enabled: false, strategy: "token" },
+      ticketNumber: { enabled: true, strategy: "token" }
+    },
+    scenarios: {
+      authHeader: { enabled: false, strategy: "token" },
+      password: { enabled: false, strategy: "token" },
+      apiKey: { enabled: false, strategy: "token" },
+      connectionString: { enabled: false, strategy: "token" },
+      privateKey: { enabled: false, strategy: "token" },
+      awsCredentials: { enabled: false, strategy: "token" }
+    }
+  },
+  /**
+   * Healthcare Preset
+   * HIPAA-focused protection
+   */
+  healthcare: {
+    formatOptions: {
+      tokenFormat: "[PHI_{TYPE}_{INDEX}]",
+      maskChar: "*",
+      preserveStructure: false
+    },
+    patterns: {
+      email: { enabled: true, strategy: "token" },
+      phone: { enabled: true, strategy: "token" },
+      ssn: { enabled: true, strategy: "token" },
+      name: { enabled: true, strategy: "token" },
+      creditCard: { enabled: true, strategy: "token" },
+      creditCardLast4: { enabled: true, strategy: "token" },
+      uuid: { enabled: true, strategy: "token" },
+      filePath: { enabled: true, strategy: "token" },
+      ipv4: { enabled: true, strategy: "token" },
+      ipv6: { enabled: true, strategy: "token" },
+      macAddress: { enabled: true, strategy: "token" },
+      hostname: { enabled: true, strategy: "token" },
+      ticketNumber: { enabled: true, strategy: "token" }
+    },
+    scenarios: {
+      authHeader: { enabled: true, strategy: "token" },
+      password: { enabled: true, strategy: "token" },
+      apiKey: { enabled: true, strategy: "token" },
+      connectionString: { enabled: true, strategy: "token" },
+      privateKey: { enabled: true, strategy: "token" },
+      awsCredentials: { enabled: true, strategy: "token" }
+    }
+  }
+};
+function getPreset(name) {
+  const preset = PRESETS[name];
+  return JSON.parse(JSON.stringify(preset));
+}
+function getPresetNames() {
+  return Object.keys(PRESETS);
+}
+function hasPreset(name) {
+  return name in PRESETS;
+}
+
+// packages/core/src/regex-builder/tokenizer.ts
+var TokenType = /* @__PURE__ */ ((TokenType3) => {
+  TokenType3["DIGIT"] = "DIGIT";
+  TokenType3["LOWER"] = "LOWER";
+  TokenType3["UPPER"] = "UPPER";
+  TokenType3["HEX_LOWER"] = "HEX_LOWER";
+  TokenType3["HEX_UPPER"] = "HEX_UPPER";
+  TokenType3["WHITESPACE"] = "WHITESPACE";
+  TokenType3["NEWLINE"] = "NEWLINE";
+  TokenType3["SPECIAL"] = "SPECIAL";
+  return TokenType3;
+})(TokenType || {});
+function classifyChar(char) {
+  if (/\d/.test(char)) return "DIGIT" /* DIGIT */;
+  if (/[a-f]/.test(char)) return "HEX_LOWER" /* HEX_LOWER */;
+  if (/[A-F]/.test(char)) return "HEX_UPPER" /* HEX_UPPER */;
+  if (/[a-z]/.test(char)) return "LOWER" /* LOWER */;
+  if (/[A-Z]/.test(char)) return "UPPER" /* UPPER */;
+  if (/[\r\n]/.test(char)) return "NEWLINE" /* NEWLINE */;
+  if (/\s/.test(char)) return "WHITESPACE" /* WHITESPACE */;
+  return "SPECIAL" /* SPECIAL */;
+}
+function canMerge(type1, type2) {
+  if (type1 === type2) return true;
+  if ((type1 === "DIGIT" /* DIGIT */ || type1 === "HEX_LOWER" /* HEX_LOWER */ || type1 === "HEX_UPPER" /* HEX_UPPER */) && (type2 === "DIGIT" /* DIGIT */ || type2 === "HEX_LOWER" /* HEX_LOWER */ || type2 === "HEX_UPPER" /* HEX_UPPER */)) {
+    return true;
+  }
+  if (type1 === "HEX_LOWER" /* HEX_LOWER */ && type2 === "LOWER" /* LOWER */ || type1 === "LOWER" /* LOWER */ && type2 === "HEX_LOWER" /* HEX_LOWER */) {
+    return true;
+  }
+  if (type1 === "HEX_UPPER" /* HEX_UPPER */ && type2 === "UPPER" /* UPPER */ || type1 === "UPPER" /* UPPER */ && type2 === "HEX_UPPER" /* HEX_UPPER */) {
+    return true;
+  }
+  return false;
+}
+function getMergedType(type1, type2) {
+  if (type1 === type2) return type1;
+  const hexTypes = ["DIGIT" /* DIGIT */, "HEX_LOWER" /* HEX_LOWER */, "HEX_UPPER" /* HEX_UPPER */];
+  if (hexTypes.includes(type1) && hexTypes.includes(type2)) {
+    if (type1 === "HEX_LOWER" /* HEX_LOWER */ || type2 === "HEX_LOWER" /* HEX_LOWER */) {
+      return "HEX_LOWER" /* HEX_LOWER */;
+    }
+    if (type1 === "HEX_UPPER" /* HEX_UPPER */ || type2 === "HEX_UPPER" /* HEX_UPPER */) {
+      return "HEX_UPPER" /* HEX_UPPER */;
+    }
+    return "DIGIT" /* DIGIT */;
+  }
+  if ((type1 === "HEX_LOWER" /* HEX_LOWER */ || type1 === "LOWER" /* LOWER */) && (type2 === "HEX_LOWER" /* HEX_LOWER */ || type2 === "LOWER" /* LOWER */)) {
+    return "LOWER" /* LOWER */;
+  }
+  if ((type1 === "HEX_UPPER" /* HEX_UPPER */ || type1 === "UPPER" /* UPPER */) && (type2 === "HEX_UPPER" /* HEX_UPPER */ || type2 === "UPPER" /* UPPER */)) {
+    return "UPPER" /* UPPER */;
+  }
+  return type1;
+}
+function tokenize(input) {
+  if (!input) return [];
+  const tokens = [];
+  let pos = 0;
+  while (pos < input.length) {
+    const char = input[pos];
+    const charType = classifyChar(char);
+    if (tokens.length > 0) {
+      const lastToken = tokens[tokens.length - 1];
+      if (charType !== "SPECIAL" /* SPECIAL */ && lastToken.type !== "SPECIAL" /* SPECIAL */) {
+        if (canMerge(lastToken.type, charType)) {
+          lastToken.value += char;
+          lastToken.length++;
+          lastToken.type = getMergedType(lastToken.type, charType);
+          pos++;
+          continue;
+        }
+      }
+    }
+    tokens.push({
+      type: charType,
+      value: char,
+      position: pos,
+      length: 1
+    });
+    pos++;
+  }
+  return tokens;
+}
+
+// packages/core/src/regex-builder/pattern-detector.ts
+var KNOWN_PATTERNS = [
+  {
+    name: "UUID",
+    type: "uuid",
+    test: (tokens) => {
+      if (tokens.length !== 9) return false;
+      const lengths = [8, 1, 4, 1, 4, 1, 4, 1, 12];
+      return tokens.every((t, i) => {
+        if (i % 2 === 1) return t.type === "SPECIAL" /* SPECIAL */ && t.value === "-";
+        return (t.type === "HEX_LOWER" /* HEX_LOWER */ || t.type === "HEX_UPPER" /* HEX_UPPER */ || t.type === "DIGIT" /* DIGIT */) && t.length === lengths[i];
+      });
+    },
+    toRegex: () => "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+  },
+  {
+    name: "IPv4",
+    type: "ipv4",
+    test: (tokens) => {
+      if (tokens.length !== 7) return false;
+      return tokens.every((t, i) => {
+        if (i % 2 === 1) return t.type === "SPECIAL" /* SPECIAL */ && t.value === ".";
+        return t.type === "DIGIT" /* DIGIT */ && t.length >= 1 && t.length <= 3;
+      });
+    },
+    toRegex: () => "(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
+  },
+  {
+    name: "MAC Address (colon)",
+    type: "mac",
+    test: (tokens) => {
+      if (tokens.length !== 11) return false;
+      return tokens.every((t, i) => {
+        if (i % 2 === 1) return t.type === "SPECIAL" /* SPECIAL */ && t.value === ":";
+        return (t.type === "HEX_LOWER" /* HEX_LOWER */ || t.type === "HEX_UPPER" /* HEX_UPPER */ || t.type === "DIGIT" /* DIGIT */) && t.length === 2;
+      });
+    },
+    toRegex: () => "[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}"
+  },
+  {
+    name: "MAC Address (dash)",
+    type: "mac",
+    test: (tokens) => {
+      if (tokens.length !== 11) return false;
+      return tokens.every((t, i) => {
+        if (i % 2 === 1) return t.type === "SPECIAL" /* SPECIAL */ && t.value === "-";
+        return (t.type === "HEX_LOWER" /* HEX_LOWER */ || t.type === "HEX_UPPER" /* HEX_UPPER */ || t.type === "DIGIT" /* DIGIT */) && t.length === 2;
+      });
+    },
+    toRegex: () => "[0-9a-fA-F]{2}-[0-9a-fA-F]{2}-[0-9a-fA-F]{2}-[0-9a-fA-F]{2}-[0-9a-fA-F]{2}-[0-9a-fA-F]{2}"
+  }
+];
+function tokenToRegex(token) {
+  const len = token.length;
+  switch (token.type) {
+    case "DIGIT" /* DIGIT */:
+      return {
+        regex: len === 1 ? "\\d" : `\\d{${len}}`,
+        description: `${len} digit(s)`,
+        type: "digit",
+        isVariable: true,
+        minLength: len,
+        maxLength: len,
+        originalValue: token.value
+      };
+    case "LOWER" /* LOWER */:
+      return {
+        regex: len === 1 ? "[a-z]" : `[a-z]{${len}}`,
+        description: `${len} lowercase letter(s)`,
+        type: "lower",
+        isVariable: true,
+        minLength: len,
+        maxLength: len,
+        originalValue: token.value
+      };
+    case "UPPER" /* UPPER */:
+      return {
+        regex: len === 1 ? "[A-Z]" : `[A-Z]{${len}}`,
+        description: `${len} uppercase letter(s)`,
+        type: "upper",
+        isVariable: true,
+        minLength: len,
+        maxLength: len,
+        originalValue: token.value
+      };
+    case "HEX_LOWER" /* HEX_LOWER */:
+      return {
+        regex: len === 1 ? "[0-9a-f]" : `[0-9a-f]{${len}}`,
+        description: `${len} hex char(s) [0-9a-f]`,
+        type: "hex",
+        isVariable: true,
+        minLength: len,
+        maxLength: len,
+        originalValue: token.value
+      };
+    case "HEX_UPPER" /* HEX_UPPER */:
+      return {
+        regex: len === 1 ? "[0-9A-F]" : `[0-9A-F]{${len}}`,
+        description: `${len} hex char(s) [0-9A-F]`,
+        type: "hex",
+        isVariable: true,
+        minLength: len,
+        maxLength: len,
+        originalValue: token.value
+      };
+    case "WHITESPACE" /* WHITESPACE */:
+      return {
+        regex: len === 1 ? "\\s" : `\\s{${len}}`,
+        description: `${len} whitespace`,
+        type: "whitespace",
+        isVariable: true,
+        minLength: len,
+        maxLength: len,
+        originalValue: token.value
+      };
+    case "NEWLINE" /* NEWLINE */:
+      return {
+        regex: "\\r?\\n",
+        description: "newline",
+        type: "whitespace",
+        isVariable: false,
+        minLength: 1,
+        maxLength: 2,
+        originalValue: token.value
+      };
+    case "SPECIAL" /* SPECIAL */:
+      const escaped = token.value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return {
+        regex: escaped,
+        description: `literal "${token.value}"`,
+        type: "literal",
+        isVariable: false,
+        minLength: len,
+        maxLength: len,
+        originalValue: token.value
+      };
+    default:
+      return {
+        regex: token.value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        description: `literal "${token.value}"`,
+        type: "unknown",
+        isVariable: false,
+        minLength: len,
+        maxLength: len,
+        originalValue: token.value
+      };
+  }
+}
+function detectPatterns(tokens) {
+  for (const pattern of KNOWN_PATTERNS) {
+    if (pattern.test(tokens)) {
+      return [
+        {
+          regex: pattern.toRegex(tokens),
+          description: pattern.name,
+          type: pattern.type,
+          isVariable: true,
+          minLength: tokens.reduce((sum, t) => sum + t.length, 0),
+          maxLength: tokens.reduce((sum, t) => sum + t.length, 0),
+          originalValue: tokens.map((t) => t.value).join("")
+        }
+      ];
+    }
+  }
+  return tokens.map(tokenToRegex);
+}
+function mergeAdjacentPatterns(segments) {
+  if (segments.length <= 1) return segments;
+  const merged = [];
+  for (const segment of segments) {
+    if (merged.length === 0) {
+      merged.push({ ...segment });
+      continue;
+    }
+    const last = merged[merged.length - 1];
+    const alphaPattern = /^\[([a-zA-Z0-9-]+)\](?:\{(\d+)\})?$/;
+    const digitPattern = /^\\d(?:\{(\d+)\})?$/;
+    const lastMatch = last.regex.match(alphaPattern);
+    const currMatch = segment.regex.match(alphaPattern);
+    if (lastMatch && currMatch && lastMatch[1] === currMatch[1]) {
+      const lastCount = lastMatch[2] ? parseInt(lastMatch[2]) : 1;
+      const currCount = currMatch[2] ? parseInt(currMatch[2]) : 1;
+      const total = lastCount + currCount;
+      last.regex = `[${lastMatch[1]}]{${total}}`;
+      last.maxLength = total;
+      last.minLength = total;
+      last.description = `${total} char(s) [${lastMatch[1]}]`;
+      last.originalValue += segment.originalValue;
+      continue;
+    }
+    const lastDigit = last.regex.match(digitPattern);
+    const currDigit = segment.regex.match(digitPattern);
+    if (lastDigit && currDigit) {
+      const lastCount = lastDigit[1] ? parseInt(lastDigit[1]) : 1;
+      const currCount = currDigit[1] ? parseInt(currDigit[1]) : 1;
+      const total = lastCount + currCount;
+      last.regex = `\\d{${total}}`;
+      last.maxLength = total;
+      last.minLength = total;
+      last.description = `${total} digit(s)`;
+      last.originalValue += segment.originalValue;
+      continue;
+    }
+    merged.push({ ...segment });
+  }
+  return merged;
+}
+
+// packages/core/src/regex-builder/optimizer.ts
+var OPTIMIZATIONS = [
+  // Combine adjacent identical character classes
+  {
+    name: "Combine adjacent digits",
+    pattern: /\\d\{(\d+)\}\\d\{(\d+)\}/g,
+    replacement: (_, a, b) => `\\d{${parseInt(a) + parseInt(b)}}`
+  },
+  {
+    name: "Combine single and counted digits",
+    pattern: /\\d\\d\{(\d+)\}/g,
+    replacement: (_, n) => `\\d{${parseInt(n) + 1}}`
+  },
+  {
+    name: "Combine counted and single digits",
+    pattern: /\\d\{(\d+)\}\\d(?!\{)/g,
+    replacement: (_, n) => `\\d{${parseInt(n) + 1}}`
+  },
+  {
+    name: "Combine two single digits",
+    pattern: /\\d\\d(?!\{|\d)/g,
+    replacement: "\\d{2}"
+  },
+  // Simplify single-count quantifiers
+  {
+    name: "Remove {1} quantifier",
+    pattern: /\{1\}/g,
+    replacement: ""
+  },
+  // Combine whitespace
+  {
+    name: "Combine adjacent whitespace",
+    pattern: /\\s\{(\d+)\}\\s\{(\d+)\}/g,
+    replacement: (_, a, b) => `\\s{${parseInt(a) + parseInt(b)}}`
+  },
+  // Simplify alternation with common prefix/suffix
+  // This is more complex and would require AST parsing
+  // Combine character class ranges
+  {
+    name: "Combine [a-z] classes",
+    pattern: /\[a-z\]\{(\d+)\}\[a-z\]\{(\d+)\}/g,
+    replacement: (_, a, b) => `[a-z]{${parseInt(a) + parseInt(b)}}`
+  },
+  {
+    name: "Combine [A-Z] classes",
+    pattern: /\[A-Z\]\{(\d+)\}\[A-Z\]\{(\d+)\}/g,
+    replacement: (_, a, b) => `[A-Z]{${parseInt(a) + parseInt(b)}}`
+  },
+  {
+    name: "Combine [0-9a-f] classes",
+    pattern: /\[0-9a-f\]\{(\d+)\}\[0-9a-f\]\{(\d+)\}/g,
+    replacement: (_, a, b) => `[0-9a-f]{${parseInt(a) + parseInt(b)}}`
+  },
+  {
+    name: "Combine [0-9A-F] classes",
+    pattern: /\[0-9A-F\]\{(\d+)\}\[0-9A-F\]\{(\d+)\}/g,
+    replacement: (_, a, b) => `[0-9A-F]{${parseInt(a) + parseInt(b)}}`
+  }
+];
+function optimizeRegex(regex) {
+  let optimized = regex;
+  let changed = true;
+  let iterations = 0;
+  const maxIterations = 10;
+  while (changed && iterations < maxIterations) {
+    changed = false;
+    iterations++;
+    for (const rule of OPTIMIZATIONS) {
+      const before = optimized;
+      optimized = optimized.replace(rule.pattern, rule.replacement);
+      if (before !== optimized) {
+        changed = true;
+      }
+    }
+  }
+  return optimized;
+}
+function buildRegex(segments) {
+  const raw = segments.map((s) => s.regex).join("");
+  return optimizeRegex(raw);
+}
+function addWordBoundaries(regex, addBoundaries = true) {
+  if (!addBoundaries) return regex;
+  const startsWithWord = /^(?:\\d|\\w|\[[a-zA-Z0-9]|[a-zA-Z0-9_])/.test(regex);
+  const endsWithWord = /(?:\\d|\\w|[a-zA-Z0-9_]|\[[a-zA-Z0-9][^\]]*\]|\{[0-9]+\})$/.test(regex);
+  let result = regex;
+  if (startsWithWord) result = "\\b" + result;
+  if (endsWithWord) result = result + "\\b";
+  return result;
+}
+function validateRegex(regex, sample) {
+  try {
+    const re = new RegExp(regex);
+    const matches = re.test(sample);
+    return { valid: true, matches };
+  } catch (error) {
+    return {
+      valid: false,
+      error: error instanceof Error ? error.message : "Invalid regex",
+      matches: false
+    };
+  }
+}
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function analyzePattern(regex) {
+  const warnings = [];
+  if (regex.length < 3) {
+    warnings.push("Pattern is very short and may match too broadly");
+  }
+  if (/^\.\*$|^\.\+$/.test(regex)) {
+    warnings.push("Pattern matches any text - too broad");
+  }
+  if (/(?<!\\)[*+]/.test(regex) && !/\\b|^\^|\$$/.test(regex)) {
+    warnings.push("Unbounded repetition without anchors may match too much");
+  }
+  if (/\.\*|\.\+/.test(regex)) {
+    warnings.push("Using .* or .+ matches almost anything");
+  }
+  if (/^(?:\\d|\[[\w-]+\]|\\w|\\s)$/.test(regex)) {
+    warnings.push("Pattern only matches single characters");
+  }
+  return warnings;
+}
+
+// packages/core/src/regex-builder/index.ts
+function generateFromSample(sample, options = {}) {
+  const {
+    addWordBoundaries: withBoundaries = true,
+    caseInsensitive = false,
+    permissive = false
+  } = options;
+  if (!sample || sample.trim().length === 0) {
+    return {
+      regex: "",
+      valid: false,
+      matchesSample: false,
+      warnings: ["Empty sample provided"],
+      segments: [],
+      suggestedName: "empty",
+      error: "Sample cannot be empty"
+    };
+  }
+  const tokens = tokenize(sample);
+  let segments = detectPatterns(tokens);
+  segments = mergeAdjacentPatterns(segments);
+  let regex = buildRegex(segments);
+  if (withBoundaries) {
+    regex = addWordBoundaries(regex, true);
+  }
+  const validation = validateRegex(regex, sample);
+  const warnings = analyzePattern(regex);
+  const suggestedName = generatePatternName(segments, sample);
+  return {
+    regex,
+    valid: validation.valid,
+    matchesSample: validation.matches,
+    warnings,
+    segments,
+    suggestedName,
+    error: validation.error
+  };
+}
+function generatePatternName(segments, sample) {
+  const patternTypes = segments.map((s) => s.type).filter((t) => t !== "literal" && t !== "unknown");
+  if (patternTypes.includes("uuid")) return "uuid-pattern";
+  if (patternTypes.includes("ipv4")) return "ipv4-pattern";
+  if (patternTypes.includes("mac")) return "mac-address-pattern";
+  if (patternTypes.includes("hex")) return "hex-pattern";
+  if (/^\d{3}-\d{2}-\d{4}$/.test(sample)) return "ssn-pattern";
+  if (/^\d{3}-\d{3}-\d{4}$/.test(sample)) return "phone-pattern";
+  if (/^\d{4}-\d{4}-\d{4}-\d{4}$/.test(sample)) return "card-pattern";
+  if (/^[A-Z]{2}\d{6}$/.test(sample)) return "license-pattern";
+  const hasDigits = segments.some((s) => s.type === "digit");
+  const hasLetters = segments.some(
+    (s) => s.type === "lower" || s.type === "upper"
+  );
+  const hasSpecial = segments.some((s) => s.type === "literal");
+  if (hasDigits && hasLetters && hasSpecial) return "alphanumeric-mixed-pattern";
+  if (hasDigits && hasLetters) return "alphanumeric-pattern";
+  if (hasDigits) return "numeric-pattern";
+  if (hasLetters) return "text-pattern";
+  return "custom-pattern";
+}
+function testPattern(regex, samples) {
+  try {
+    const re = new RegExp(regex);
+    return samples.map((sample) => {
+      const match = sample.match(re);
+      return {
+        sample,
+        matches: match !== null,
+        matchedText: match?.[0]
+      };
+    });
+  } catch {
+    return samples.map((sample) => ({
+      sample,
+      matches: false
+    }));
+  }
+}
+function refineFromSamples(samples, options = {}) {
+  if (samples.length === 0) {
+    return generateFromSample("", options);
+  }
+  if (samples.length === 1) {
+    return generateFromSample(samples[0], options);
+  }
+  const patterns = samples.map(
+    (s) => generateFromSample(s, { ...options, addWordBoundaries: false })
+  );
+  const allValid = patterns.every((p) => p.valid);
+  if (!allValid) {
+    return generateFromSample(samples[0], options);
+  }
+  const firstSegments = patterns[0].segments;
+  const sameStructure = patterns.every(
+    (p) => p.segments.length === firstSegments.length && p.segments.every((seg, i) => seg.type === firstSegments[i].type)
+  );
+  if (sameStructure) {
+    return generateFromSample(samples[0], options);
+  }
+  const regexes = patterns.map((p) => `(?:${p.regex.replace(/^\\b|\\b$/g, "")})`);
+  const combinedRegex = regexes.join("|");
+  const validation = validateRegex(combinedRegex, samples[0]);
+  const warnings = analyzePattern(combinedRegex);
+  warnings.push("Pattern combines multiple sample structures using alternation");
+  return {
+    regex: options.addWordBoundaries !== false ? addWordBoundaries(combinedRegex, true) : combinedRegex,
+    valid: validation.valid,
+    matchesSample: samples.every((s) => new RegExp(combinedRegex).test(s)),
+    warnings,
+    segments: patterns[0].segments,
+    suggestedName: "multi-sample-pattern",
+    error: validation.error
+  };
+}
 export {
+  AWSCredentialsScenario,
+  ApiKeyScenario,
+  AuthorizationHeaderScenario,
   BasePattern,
+  BaseScenario,
   ConfigLoader,
+  ConnectionStringScenario,
   CreditCardLast4Pattern,
   CreditCardPattern,
   DEFAULT_CONFIG,
   DataRedactor,
   EmailPattern,
+  FilePathPattern,
   FormatPreservingStrategy,
   HostnamePattern,
   IPv4Pattern,
@@ -960,9 +1953,29 @@ export {
   MACAddressPattern,
   MaskStrategy,
   NamePattern,
+  PRESETS,
+  PasswordScenario,
   PhonePattern,
+  PrivateKeyScenario,
   RedactionContext,
   SSNPattern,
   TicketNumberPattern,
-  TokenStrategy
+  TokenStrategy,
+  TokenType,
+  UUIDPattern,
+  addWordBoundaries,
+  analyzePattern,
+  buildRegex,
+  detectPatterns,
+  escapeRegex,
+  generateFromSample,
+  getPreset,
+  getPresetNames,
+  hasPreset,
+  mergeAdjacentPatterns,
+  optimizeRegex,
+  refineFromSamples,
+  testPattern,
+  tokenize,
+  validateRegex
 };

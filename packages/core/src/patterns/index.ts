@@ -8,3 +8,4 @@ export {
 export { EmailPattern, PhonePattern, SSNPattern, NamePattern } from './personal'
 export { CreditCardPattern, CreditCardLast4Pattern } from './financial'
 export { TicketNumberPattern } from './business'
+export { UUIDPattern, FilePathPattern } from './system'

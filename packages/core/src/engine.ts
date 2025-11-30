@@ -12,6 +12,8 @@ import {
   CreditCardLast4Pattern,
   TicketNumberPattern,
   NamePattern,
+  UUIDPattern,
+  FilePathPattern,
   BasePattern,
 } from './patterns'
 import {
@@ -21,10 +23,20 @@ import {
   FormatPreservingStrategy,
 } from './strategies'
 import type { IRedactionStrategy } from './strategies'
+import {
+  AuthorizationHeaderScenario,
+  PasswordScenario,
+  ApiKeyScenario,
+  ConnectionStringScenario,
+  PrivateKeyScenario,
+  AWSCredentialsScenario,
+} from './scenarios'
+import type { Scenario } from './scenarios'
 
 export class DataRedactor {
   private config: RedactorConfig
   private patterns: Pattern[] = []
+  private scenarios: Scenario[] = []
   private context: RedactionContext
   private strategies: Map<string, IRedactionStrategy>
 
@@ -56,6 +68,7 @@ export class DataRedactor {
 
     this.context = new RedactionContext()
     this.initializePatterns()
+    this.initializeScenarios()
   }
 
   private initializePatterns(): void {
@@ -298,6 +311,48 @@ export class DataRedactor {
       }
     }
 
+    if (patterns.uuid) {
+      if (patterns.uuid.regex) {
+        const regex = new RegExp(patterns.uuid.regex, patterns.uuid.flags || '')
+        this.patterns.push(
+          new BasePattern(
+            'uuid',
+            regex,
+            patterns.uuid.strategy,
+            patterns.uuid.enabled
+          )
+        )
+      } else {
+        this.patterns.push(
+          new UUIDPattern(patterns.uuid.strategy, patterns.uuid.enabled)
+        )
+      }
+    }
+
+    if (patterns.filePath) {
+      if (patterns.filePath.regex) {
+        const regex = new RegExp(
+          patterns.filePath.regex,
+          patterns.filePath.flags || ''
+        )
+        this.patterns.push(
+          new BasePattern(
+            'filePath',
+            regex,
+            patterns.filePath.strategy,
+            patterns.filePath.enabled
+          )
+        )
+      } else {
+        this.patterns.push(
+          new FilePathPattern(
+            patterns.filePath.strategy,
+            patterns.filePath.enabled
+          )
+        )
+      }
+    }
+
     // Initialize custom patterns
     if (patterns.custom) {
       patterns.custom.forEach(customPattern => {
@@ -328,6 +383,63 @@ export class DataRedactor {
     }
   }
 
+  private initializeScenarios(): void {
+    const { scenarios } = this.config
+
+    if (!scenarios) return
+
+    if (scenarios.authHeader) {
+      this.scenarios.push(
+        new AuthorizationHeaderScenario(
+          scenarios.authHeader.strategy,
+          scenarios.authHeader.enabled
+        )
+      )
+    }
+
+    if (scenarios.password) {
+      this.scenarios.push(
+        new PasswordScenario(
+          scenarios.password.strategy,
+          scenarios.password.enabled
+        )
+      )
+    }
+
+    if (scenarios.apiKey) {
+      this.scenarios.push(
+        new ApiKeyScenario(scenarios.apiKey.strategy, scenarios.apiKey.enabled)
+      )
+    }
+
+    if (scenarios.connectionString) {
+      this.scenarios.push(
+        new ConnectionStringScenario(
+          scenarios.connectionString.strategy,
+          scenarios.connectionString.enabled
+        )
+      )
+    }
+
+    if (scenarios.privateKey) {
+      this.scenarios.push(
+        new PrivateKeyScenario(
+          scenarios.privateKey.strategy,
+          scenarios.privateKey.enabled
+        )
+      )
+    }
+
+    if (scenarios.awsCredentials) {
+      this.scenarios.push(
+        new AWSCredentialsScenario(
+          scenarios.awsCredentials.strategy,
+          scenarios.awsCredentials.enabled
+        )
+      )
+    }
+  }
+
   redact(text: string): RedactionResult {
     console.log(
       '[DataRedactor] redact() called with text:',
@@ -349,6 +461,21 @@ export class DataRedactor {
         console.log(
           '[DataRedactor] Pattern',
           pattern.name,
+          'found',
+          matches.length,
+          'matches'
+        )
+        allMatches.push(...matches)
+      }
+    })
+
+    // Find matches from scenarios (context-aware patterns)
+    this.scenarios.forEach(scenario => {
+      if (scenario.enabled) {
+        const matches = scenario.findAll(text)
+        console.log(
+          '[DataRedactor] Scenario',
+          scenario.name,
           'found',
           matches.length,
           'matches'
@@ -432,7 +559,9 @@ export class DataRedactor {
     ])
 
     this.patterns = []
+    this.scenarios = []
     this.initializePatterns()
+    this.initializeScenarios()
     this.reset()
   }
 }

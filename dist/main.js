@@ -234,7 +234,25 @@ var DEFAULT_CONFIG = {
       enabled: true,
       strategy: "token"
     },
+    uuid: {
+      enabled: true,
+      strategy: "token",
+      regex: "\\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\b"
+    },
+    filePath: {
+      enabled: true,
+      strategy: "token",
+      regex: '(?:[A-Za-z]:\\\\(?:[^\\\\\\/:*?"<>|\\r\\n]+\\\\)*[^\\\\\\/:*?"<>|\\r\\n]*)|(?:\\/(?:[^\\s\\/\\0]+\\/)+[^\\s\\/\\0]*|\\/[^\\s\\/\\0]+)'
+    },
     custom: []
+  },
+  scenarios: {
+    authHeader: { enabled: true, strategy: "token" },
+    password: { enabled: true, strategy: "token" },
+    apiKey: { enabled: true, strategy: "token" },
+    connectionString: { enabled: true, strategy: "token" },
+    privateKey: { enabled: true, strategy: "token" },
+    awsCredentials: { enabled: true, strategy: "token" }
   },
   customEntities: {},
   testData: `Support Ticket #12345
@@ -254,6 +272,20 @@ Network Details:
 - Gateway: 10.0.0.1
 - DNS Server: 8.8.8.8
 - Hostname: mail.example.com
+
+System Details:
+- Request ID: 550e8400-e29b-41d4-a716-446655440000
+- Session UUID: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+- Config File: C:\\Users\\admin\\AppData\\config.json
+- Log Path: /var/log/application/error.log
+- Script: /home/user/scripts/deploy.sh
+
+Credentials (Context-Aware):
+- Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
+- password = super_secret_123
+- api_key: sk-1234567890abcdef
+- DATABASE_URL: postgres://user:p@ssw0rd@localhost:5432/mydb
+- AWS_SECRET_ACCESS_KEY = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 
 Payment Information:
 - Primary Card: 4532-1234-5678-9010
@@ -553,6 +585,20 @@ class TicketNumberPattern extends BasePattern {
     super("ticketNumber", regex, strategy, enabled);
   }
 }
+// packages/core/src/patterns/system.ts
+class UUIDPattern extends BasePattern {
+  constructor(strategy = "token", enabled = true) {
+    const regex = /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/g;
+    super("uuid", regex, strategy, enabled);
+  }
+}
+
+class FilePathPattern extends BasePattern {
+  constructor(strategy = "token", enabled = true) {
+    const regex = /(?:[A-Za-z]:\\(?:[^\\\/:*?"<>|\r\n]+\\)*[^\\\/:*?"<>|\r\n]*)|(?:\/(?:[^\s\/\0]+\/)+[^\s\/\0]*|\/[^\s\/\0]+)/g;
+    super("filePath", regex, strategy, enabled);
+  }
+}
 // packages/core/src/strategies/base.ts
 class RedactionContext {
   valueMap = new Map;
@@ -722,10 +768,90 @@ class FormatPreservingStrategy {
     return result;
   }
 }
+// packages/core/src/scenarios/base.ts
+class BaseScenario {
+  name;
+  pattern;
+  captureGroup;
+  strategy;
+  enabled;
+  constructor(name, pattern, captureGroup = 1, strategy = "token", enabled = true) {
+    this.name = name;
+    this.pattern = pattern;
+    this.captureGroup = captureGroup;
+    this.strategy = strategy;
+    this.enabled = enabled;
+  }
+  findAll(text) {
+    if (!this.enabled)
+      return [];
+    const matches = [];
+    const regex = new RegExp(this.pattern.source, "g" + this.pattern.flags.replace("g", ""));
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const capturedValue = match[this.captureGroup];
+      if (capturedValue) {
+        const fullMatch = match[0];
+        const captureStart = match.index + fullMatch.indexOf(capturedValue);
+        matches.push({
+          value: capturedValue,
+          start: captureStart,
+          end: captureStart + capturedValue.length,
+          type: this.name,
+          strategy: this.strategy
+        });
+      }
+    }
+    return matches;
+  }
+  setStrategy(strategy) {
+    this.strategy = strategy;
+  }
+  setEnabled(enabled) {
+    this.enabled = enabled;
+  }
+}
+
+class AuthorizationHeaderScenario extends BaseScenario {
+  constructor(strategy = "token", enabled = true) {
+    super("authHeader", /Authorization:\s*(?:Bearer|Basic)\s+([^\s\r\n]+)/gi, 1, strategy, enabled);
+  }
+}
+
+class PasswordScenario extends BaseScenario {
+  constructor(strategy = "token", enabled = true) {
+    super("password", /(?:password|passwd|pwd)\s*[:=]\s*["']?([^\s"'\r\n,;]+)["']?/gi, 1, strategy, enabled);
+  }
+}
+
+class ApiKeyScenario extends BaseScenario {
+  constructor(strategy = "token", enabled = true) {
+    super("apiKey", /(?:api[_-]?key|apikey|secret[_-]?key|access[_-]?key)\s*[:=]\s*["']?([^\s"'\r\n,;]+)["']?/gi, 1, strategy, enabled);
+  }
+}
+
+class ConnectionStringScenario extends BaseScenario {
+  constructor(strategy = "token", enabled = true) {
+    super("connectionString", /(?:mongodb|postgres|mysql|redis|amqp):\/\/[^:]+:([^@]+)@/gi, 1, strategy, enabled);
+  }
+}
+
+class PrivateKeyScenario extends BaseScenario {
+  constructor(strategy = "token", enabled = true) {
+    super("privateKey", /(-----BEGIN (?:RSA |EC |DSA )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |DSA )?PRIVATE KEY-----)/gi, 1, strategy, enabled);
+  }
+}
+
+class AWSCredentialsScenario extends BaseScenario {
+  constructor(strategy = "token", enabled = true) {
+    super("awsCredentials", /(?:aws[_-]?(?:access[_-]?key[_-]?id|secret[_-]?access[_-]?key))\s*[:=]\s*["']?([A-Za-z0-9\/+=]+)["']?/gi, 1, strategy, enabled);
+  }
+}
 // packages/core/src/engine.ts
 class DataRedactor {
   config;
   patterns = [];
+  scenarios = [];
   context;
   strategies;
   constructor(config) {
@@ -750,6 +876,7 @@ class DataRedactor {
     ]);
     this.context = new RedactionContext;
     this.initializePatterns();
+    this.initializeScenarios();
   }
   initializePatterns() {
     const { patterns } = this.config;
@@ -843,6 +970,22 @@ class DataRedactor {
         this.patterns.push(new NamePattern(patterns.name.strategy, patterns.name.enabled));
       }
     }
+    if (patterns.uuid) {
+      if (patterns.uuid.regex) {
+        const regex = new RegExp(patterns.uuid.regex, patterns.uuid.flags || "");
+        this.patterns.push(new BasePattern("uuid", regex, patterns.uuid.strategy, patterns.uuid.enabled));
+      } else {
+        this.patterns.push(new UUIDPattern(patterns.uuid.strategy, patterns.uuid.enabled));
+      }
+    }
+    if (patterns.filePath) {
+      if (patterns.filePath.regex) {
+        const regex = new RegExp(patterns.filePath.regex, patterns.filePath.flags || "");
+        this.patterns.push(new BasePattern("filePath", regex, patterns.filePath.strategy, patterns.filePath.enabled));
+      } else {
+        this.patterns.push(new FilePathPattern(patterns.filePath.strategy, patterns.filePath.enabled));
+      }
+    }
     if (patterns.custom) {
       patterns.custom.forEach((customPattern) => {
         const regex = new RegExp(customPattern.regex, customPattern.flags || "");
@@ -859,6 +1002,29 @@ class DataRedactor {
       });
     }
   }
+  initializeScenarios() {
+    const { scenarios } = this.config;
+    if (!scenarios)
+      return;
+    if (scenarios.authHeader) {
+      this.scenarios.push(new AuthorizationHeaderScenario(scenarios.authHeader.strategy, scenarios.authHeader.enabled));
+    }
+    if (scenarios.password) {
+      this.scenarios.push(new PasswordScenario(scenarios.password.strategy, scenarios.password.enabled));
+    }
+    if (scenarios.apiKey) {
+      this.scenarios.push(new ApiKeyScenario(scenarios.apiKey.strategy, scenarios.apiKey.enabled));
+    }
+    if (scenarios.connectionString) {
+      this.scenarios.push(new ConnectionStringScenario(scenarios.connectionString.strategy, scenarios.connectionString.enabled));
+    }
+    if (scenarios.privateKey) {
+      this.scenarios.push(new PrivateKeyScenario(scenarios.privateKey.strategy, scenarios.privateKey.enabled));
+    }
+    if (scenarios.awsCredentials) {
+      this.scenarios.push(new AWSCredentialsScenario(scenarios.awsCredentials.strategy, scenarios.awsCredentials.enabled));
+    }
+  }
   redact(text) {
     console.log("[DataRedactor] redact() called with text:", text.substring(0, 200));
     console.log("[DataRedactor] Number of patterns:", this.patterns.length);
@@ -868,6 +1034,13 @@ class DataRedactor {
       if (pattern.enabled) {
         const matches = pattern.findAll(text);
         console.log("[DataRedactor] Pattern", pattern.name, "found", matches.length, "matches");
+        allMatches.push(...matches);
+      }
+    });
+    this.scenarios.forEach((scenario) => {
+      if (scenario.enabled) {
+        const matches = scenario.findAll(text);
+        console.log("[DataRedactor] Scenario", scenario.name, "found", matches.length, "matches");
         allMatches.push(...matches);
       }
     });
@@ -918,15 +1091,540 @@ class DataRedactor {
       ["formatPreserving", new FormatPreservingStrategy(formatOptions)]
     ]);
     this.patterns = [];
+    this.scenarios = [];
     this.initializePatterns();
+    this.initializeScenarios();
     this.reset();
   }
 }
+// packages/core/src/regex-builder/tokenizer.ts
+function classifyChar(char) {
+  if (/\d/.test(char))
+    return "DIGIT" /* DIGIT */;
+  if (/[a-f]/.test(char))
+    return "HEX_LOWER" /* HEX_LOWER */;
+  if (/[A-F]/.test(char))
+    return "HEX_UPPER" /* HEX_UPPER */;
+  if (/[a-z]/.test(char))
+    return "LOWER" /* LOWER */;
+  if (/[A-Z]/.test(char))
+    return "UPPER" /* UPPER */;
+  if (/[\r\n]/.test(char))
+    return "NEWLINE" /* NEWLINE */;
+  if (/\s/.test(char))
+    return "WHITESPACE" /* WHITESPACE */;
+  return "SPECIAL" /* SPECIAL */;
+}
+function canMerge(type1, type2) {
+  if (type1 === type2)
+    return true;
+  if ((type1 === "DIGIT" /* DIGIT */ || type1 === "HEX_LOWER" /* HEX_LOWER */ || type1 === "HEX_UPPER" /* HEX_UPPER */) && (type2 === "DIGIT" /* DIGIT */ || type2 === "HEX_LOWER" /* HEX_LOWER */ || type2 === "HEX_UPPER" /* HEX_UPPER */)) {
+    return true;
+  }
+  if (type1 === "HEX_LOWER" /* HEX_LOWER */ && type2 === "LOWER" /* LOWER */ || type1 === "LOWER" /* LOWER */ && type2 === "HEX_LOWER" /* HEX_LOWER */) {
+    return true;
+  }
+  if (type1 === "HEX_UPPER" /* HEX_UPPER */ && type2 === "UPPER" /* UPPER */ || type1 === "UPPER" /* UPPER */ && type2 === "HEX_UPPER" /* HEX_UPPER */) {
+    return true;
+  }
+  return false;
+}
+function getMergedType(type1, type2) {
+  if (type1 === type2)
+    return type1;
+  const hexTypes = ["DIGIT" /* DIGIT */, "HEX_LOWER" /* HEX_LOWER */, "HEX_UPPER" /* HEX_UPPER */];
+  if (hexTypes.includes(type1) && hexTypes.includes(type2)) {
+    if (type1 === "HEX_LOWER" /* HEX_LOWER */ || type2 === "HEX_LOWER" /* HEX_LOWER */) {
+      return "HEX_LOWER" /* HEX_LOWER */;
+    }
+    if (type1 === "HEX_UPPER" /* HEX_UPPER */ || type2 === "HEX_UPPER" /* HEX_UPPER */) {
+      return "HEX_UPPER" /* HEX_UPPER */;
+    }
+    return "DIGIT" /* DIGIT */;
+  }
+  if ((type1 === "HEX_LOWER" /* HEX_LOWER */ || type1 === "LOWER" /* LOWER */) && (type2 === "HEX_LOWER" /* HEX_LOWER */ || type2 === "LOWER" /* LOWER */)) {
+    return "LOWER" /* LOWER */;
+  }
+  if ((type1 === "HEX_UPPER" /* HEX_UPPER */ || type1 === "UPPER" /* UPPER */) && (type2 === "HEX_UPPER" /* HEX_UPPER */ || type2 === "UPPER" /* UPPER */)) {
+    return "UPPER" /* UPPER */;
+  }
+  return type1;
+}
+function tokenize(input) {
+  if (!input)
+    return [];
+  const tokens = [];
+  let pos = 0;
+  while (pos < input.length) {
+    const char = input[pos];
+    const charType = classifyChar(char);
+    if (tokens.length > 0) {
+      const lastToken = tokens[tokens.length - 1];
+      if (charType !== "SPECIAL" /* SPECIAL */ && lastToken.type !== "SPECIAL" /* SPECIAL */) {
+        if (canMerge(lastToken.type, charType)) {
+          lastToken.value += char;
+          lastToken.length++;
+          lastToken.type = getMergedType(lastToken.type, charType);
+          pos++;
+          continue;
+        }
+      }
+    }
+    tokens.push({
+      type: charType,
+      value: char,
+      position: pos,
+      length: 1
+    });
+    pos++;
+  }
+  return tokens;
+}
+
+// packages/core/src/regex-builder/pattern-detector.ts
+var KNOWN_PATTERNS = [
+  {
+    name: "UUID",
+    type: "uuid",
+    test: (tokens) => {
+      if (tokens.length !== 9)
+        return false;
+      const lengths = [8, 1, 4, 1, 4, 1, 4, 1, 12];
+      return tokens.every((t, i) => {
+        if (i % 2 === 1)
+          return t.type === "SPECIAL" /* SPECIAL */ && t.value === "-";
+        return (t.type === "HEX_LOWER" /* HEX_LOWER */ || t.type === "HEX_UPPER" /* HEX_UPPER */ || t.type === "DIGIT" /* DIGIT */) && t.length === lengths[i];
+      });
+    },
+    toRegex: () => "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+  },
+  {
+    name: "IPv4",
+    type: "ipv4",
+    test: (tokens) => {
+      if (tokens.length !== 7)
+        return false;
+      return tokens.every((t, i) => {
+        if (i % 2 === 1)
+          return t.type === "SPECIAL" /* SPECIAL */ && t.value === ".";
+        return t.type === "DIGIT" /* DIGIT */ && t.length >= 1 && t.length <= 3;
+      });
+    },
+    toRegex: () => "(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
+  },
+  {
+    name: "MAC Address (colon)",
+    type: "mac",
+    test: (tokens) => {
+      if (tokens.length !== 11)
+        return false;
+      return tokens.every((t, i) => {
+        if (i % 2 === 1)
+          return t.type === "SPECIAL" /* SPECIAL */ && t.value === ":";
+        return (t.type === "HEX_LOWER" /* HEX_LOWER */ || t.type === "HEX_UPPER" /* HEX_UPPER */ || t.type === "DIGIT" /* DIGIT */) && t.length === 2;
+      });
+    },
+    toRegex: () => "[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}"
+  },
+  {
+    name: "MAC Address (dash)",
+    type: "mac",
+    test: (tokens) => {
+      if (tokens.length !== 11)
+        return false;
+      return tokens.every((t, i) => {
+        if (i % 2 === 1)
+          return t.type === "SPECIAL" /* SPECIAL */ && t.value === "-";
+        return (t.type === "HEX_LOWER" /* HEX_LOWER */ || t.type === "HEX_UPPER" /* HEX_UPPER */ || t.type === "DIGIT" /* DIGIT */) && t.length === 2;
+      });
+    },
+    toRegex: () => "[0-9a-fA-F]{2}-[0-9a-fA-F]{2}-[0-9a-fA-F]{2}-[0-9a-fA-F]{2}-[0-9a-fA-F]{2}-[0-9a-fA-F]{2}"
+  }
+];
+function tokenToRegex(token) {
+  const len = token.length;
+  switch (token.type) {
+    case "DIGIT" /* DIGIT */:
+      return {
+        regex: len === 1 ? "\\d" : `\\d{${len}}`,
+        description: `${len} digit(s)`,
+        type: "digit",
+        isVariable: true,
+        minLength: len,
+        maxLength: len,
+        originalValue: token.value
+      };
+    case "LOWER" /* LOWER */:
+      return {
+        regex: len === 1 ? "[a-z]" : `[a-z]{${len}}`,
+        description: `${len} lowercase letter(s)`,
+        type: "lower",
+        isVariable: true,
+        minLength: len,
+        maxLength: len,
+        originalValue: token.value
+      };
+    case "UPPER" /* UPPER */:
+      return {
+        regex: len === 1 ? "[A-Z]" : `[A-Z]{${len}}`,
+        description: `${len} uppercase letter(s)`,
+        type: "upper",
+        isVariable: true,
+        minLength: len,
+        maxLength: len,
+        originalValue: token.value
+      };
+    case "HEX_LOWER" /* HEX_LOWER */:
+      return {
+        regex: len === 1 ? "[0-9a-f]" : `[0-9a-f]{${len}}`,
+        description: `${len} hex char(s) [0-9a-f]`,
+        type: "hex",
+        isVariable: true,
+        minLength: len,
+        maxLength: len,
+        originalValue: token.value
+      };
+    case "HEX_UPPER" /* HEX_UPPER */:
+      return {
+        regex: len === 1 ? "[0-9A-F]" : `[0-9A-F]{${len}}`,
+        description: `${len} hex char(s) [0-9A-F]`,
+        type: "hex",
+        isVariable: true,
+        minLength: len,
+        maxLength: len,
+        originalValue: token.value
+      };
+    case "WHITESPACE" /* WHITESPACE */:
+      return {
+        regex: len === 1 ? "\\s" : `\\s{${len}}`,
+        description: `${len} whitespace`,
+        type: "whitespace",
+        isVariable: true,
+        minLength: len,
+        maxLength: len,
+        originalValue: token.value
+      };
+    case "NEWLINE" /* NEWLINE */:
+      return {
+        regex: "\\r?\\n",
+        description: "newline",
+        type: "whitespace",
+        isVariable: false,
+        minLength: 1,
+        maxLength: 2,
+        originalValue: token.value
+      };
+    case "SPECIAL" /* SPECIAL */:
+      const escaped = token.value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return {
+        regex: escaped,
+        description: `literal "${token.value}"`,
+        type: "literal",
+        isVariable: false,
+        minLength: len,
+        maxLength: len,
+        originalValue: token.value
+      };
+    default:
+      return {
+        regex: token.value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        description: `literal "${token.value}"`,
+        type: "unknown",
+        isVariable: false,
+        minLength: len,
+        maxLength: len,
+        originalValue: token.value
+      };
+  }
+}
+function detectPatterns(tokens) {
+  for (const pattern of KNOWN_PATTERNS) {
+    if (pattern.test(tokens)) {
+      return [
+        {
+          regex: pattern.toRegex(tokens),
+          description: pattern.name,
+          type: pattern.type,
+          isVariable: true,
+          minLength: tokens.reduce((sum, t) => sum + t.length, 0),
+          maxLength: tokens.reduce((sum, t) => sum + t.length, 0),
+          originalValue: tokens.map((t) => t.value).join("")
+        }
+      ];
+    }
+  }
+  return tokens.map(tokenToRegex);
+}
+function mergeAdjacentPatterns(segments) {
+  if (segments.length <= 1)
+    return segments;
+  const merged = [];
+  for (const segment of segments) {
+    if (merged.length === 0) {
+      merged.push({ ...segment });
+      continue;
+    }
+    const last = merged[merged.length - 1];
+    const alphaPattern = /^\[([a-zA-Z0-9-]+)\](?:\{(\d+)\})?$/;
+    const digitPattern = /^\\d(?:\{(\d+)\})?$/;
+    const lastMatch = last.regex.match(alphaPattern);
+    const currMatch = segment.regex.match(alphaPattern);
+    if (lastMatch && currMatch && lastMatch[1] === currMatch[1]) {
+      const lastCount = lastMatch[2] ? parseInt(lastMatch[2]) : 1;
+      const currCount = currMatch[2] ? parseInt(currMatch[2]) : 1;
+      const total = lastCount + currCount;
+      last.regex = `[${lastMatch[1]}]{${total}}`;
+      last.maxLength = total;
+      last.minLength = total;
+      last.description = `${total} char(s) [${lastMatch[1]}]`;
+      last.originalValue += segment.originalValue;
+      continue;
+    }
+    const lastDigit = last.regex.match(digitPattern);
+    const currDigit = segment.regex.match(digitPattern);
+    if (lastDigit && currDigit) {
+      const lastCount = lastDigit[1] ? parseInt(lastDigit[1]) : 1;
+      const currCount = currDigit[1] ? parseInt(currDigit[1]) : 1;
+      const total = lastCount + currCount;
+      last.regex = `\\d{${total}}`;
+      last.maxLength = total;
+      last.minLength = total;
+      last.description = `${total} digit(s)`;
+      last.originalValue += segment.originalValue;
+      continue;
+    }
+    merged.push({ ...segment });
+  }
+  return merged;
+}
+
+// packages/core/src/regex-builder/optimizer.ts
+var OPTIMIZATIONS = [
+  {
+    name: "Combine adjacent digits",
+    pattern: /\\d\{(\d+)\}\\d\{(\d+)\}/g,
+    replacement: (_, a, b) => `\\d{${parseInt(a) + parseInt(b)}}`
+  },
+  {
+    name: "Combine single and counted digits",
+    pattern: /\\d\\d\{(\d+)\}/g,
+    replacement: (_, n) => `\\d{${parseInt(n) + 1}}`
+  },
+  {
+    name: "Combine counted and single digits",
+    pattern: /\\d\{(\d+)\}\\d(?!\{)/g,
+    replacement: (_, n) => `\\d{${parseInt(n) + 1}}`
+  },
+  {
+    name: "Combine two single digits",
+    pattern: /\\d\\d(?!\{|\d)/g,
+    replacement: "\\d{2}"
+  },
+  {
+    name: "Remove {1} quantifier",
+    pattern: /\{1\}/g,
+    replacement: ""
+  },
+  {
+    name: "Combine adjacent whitespace",
+    pattern: /\\s\{(\d+)\}\\s\{(\d+)\}/g,
+    replacement: (_, a, b) => `\\s{${parseInt(a) + parseInt(b)}}`
+  },
+  {
+    name: "Combine [a-z] classes",
+    pattern: /\[a-z\]\{(\d+)\}\[a-z\]\{(\d+)\}/g,
+    replacement: (_, a, b) => `[a-z]{${parseInt(a) + parseInt(b)}}`
+  },
+  {
+    name: "Combine [A-Z] classes",
+    pattern: /\[A-Z\]\{(\d+)\}\[A-Z\]\{(\d+)\}/g,
+    replacement: (_, a, b) => `[A-Z]{${parseInt(a) + parseInt(b)}}`
+  },
+  {
+    name: "Combine [0-9a-f] classes",
+    pattern: /\[0-9a-f\]\{(\d+)\}\[0-9a-f\]\{(\d+)\}/g,
+    replacement: (_, a, b) => `[0-9a-f]{${parseInt(a) + parseInt(b)}}`
+  },
+  {
+    name: "Combine [0-9A-F] classes",
+    pattern: /\[0-9A-F\]\{(\d+)\}\[0-9A-F\]\{(\d+)\}/g,
+    replacement: (_, a, b) => `[0-9A-F]{${parseInt(a) + parseInt(b)}}`
+  }
+];
+function optimizeRegex(regex) {
+  let optimized = regex;
+  let changed = true;
+  let iterations = 0;
+  const maxIterations = 10;
+  while (changed && iterations < maxIterations) {
+    changed = false;
+    iterations++;
+    for (const rule of OPTIMIZATIONS) {
+      const before = optimized;
+      optimized = optimized.replace(rule.pattern, rule.replacement);
+      if (before !== optimized) {
+        changed = true;
+      }
+    }
+  }
+  return optimized;
+}
+function buildRegex(segments) {
+  const raw = segments.map((s) => s.regex).join("");
+  return optimizeRegex(raw);
+}
+function addWordBoundaries(regex, addBoundaries = true) {
+  if (!addBoundaries)
+    return regex;
+  const startsWithWord = /^(?:\\d|\\w|\[[a-zA-Z0-9]|[a-zA-Z0-9_])/.test(regex);
+  const endsWithWord = /(?:\\d|\\w|[a-zA-Z0-9_]|\[[a-zA-Z0-9][^\]]*\]|\{[0-9]+\})$/.test(regex);
+  let result = regex;
+  if (startsWithWord)
+    result = "\\b" + result;
+  if (endsWithWord)
+    result = result + "\\b";
+  return result;
+}
+function validateRegex(regex, sample) {
+  try {
+    const re = new RegExp(regex);
+    const matches = re.test(sample);
+    return { valid: true, matches };
+  } catch (error) {
+    return {
+      valid: false,
+      error: error instanceof Error ? error.message : "Invalid regex",
+      matches: false
+    };
+  }
+}
+function analyzePattern(regex) {
+  const warnings = [];
+  if (regex.length < 3) {
+    warnings.push("Pattern is very short and may match too broadly");
+  }
+  if (/^\.\*$|^\.\+$/.test(regex)) {
+    warnings.push("Pattern matches any text - too broad");
+  }
+  if (/(?<!\\)[*+]/.test(regex) && !/\\b|^\^|\$$/.test(regex)) {
+    warnings.push("Unbounded repetition without anchors may match too much");
+  }
+  if (/\.\*|\.\+/.test(regex)) {
+    warnings.push("Using .* or .+ matches almost anything");
+  }
+  if (/^(?:\\d|\[[\w-]+\]|\\w|\\s)$/.test(regex)) {
+    warnings.push("Pattern only matches single characters");
+  }
+  return warnings;
+}
+
+// packages/core/src/regex-builder/index.ts
+function generateFromSample(sample, options = {}) {
+  const {
+    addWordBoundaries: withBoundaries = true,
+    caseInsensitive = false,
+    permissive = false
+  } = options;
+  if (!sample || sample.trim().length === 0) {
+    return {
+      regex: "",
+      valid: false,
+      matchesSample: false,
+      warnings: ["Empty sample provided"],
+      segments: [],
+      suggestedName: "empty",
+      error: "Sample cannot be empty"
+    };
+  }
+  const tokens = tokenize(sample);
+  let segments = detectPatterns(tokens);
+  segments = mergeAdjacentPatterns(segments);
+  let regex = buildRegex(segments);
+  if (withBoundaries) {
+    regex = addWordBoundaries(regex, true);
+  }
+  const validation = validateRegex(regex, sample);
+  const warnings = analyzePattern(regex);
+  const suggestedName = generatePatternName(segments, sample);
+  return {
+    regex,
+    valid: validation.valid,
+    matchesSample: validation.matches,
+    warnings,
+    segments,
+    suggestedName,
+    error: validation.error
+  };
+}
+function generatePatternName(segments, sample) {
+  const patternTypes = segments.map((s) => s.type).filter((t) => t !== "literal" && t !== "unknown");
+  if (patternTypes.includes("uuid"))
+    return "uuid-pattern";
+  if (patternTypes.includes("ipv4"))
+    return "ipv4-pattern";
+  if (patternTypes.includes("mac"))
+    return "mac-address-pattern";
+  if (patternTypes.includes("hex"))
+    return "hex-pattern";
+  if (/^\d{3}-\d{2}-\d{4}$/.test(sample))
+    return "ssn-pattern";
+  if (/^\d{3}-\d{3}-\d{4}$/.test(sample))
+    return "phone-pattern";
+  if (/^\d{4}-\d{4}-\d{4}-\d{4}$/.test(sample))
+    return "card-pattern";
+  if (/^[A-Z]{2}\d{6}$/.test(sample))
+    return "license-pattern";
+  const hasDigits = segments.some((s) => s.type === "digit");
+  const hasLetters = segments.some((s) => s.type === "lower" || s.type === "upper");
+  const hasSpecial = segments.some((s) => s.type === "literal");
+  if (hasDigits && hasLetters && hasSpecial)
+    return "alphanumeric-mixed-pattern";
+  if (hasDigits && hasLetters)
+    return "alphanumeric-pattern";
+  if (hasDigits)
+    return "numeric-pattern";
+  if (hasLetters)
+    return "text-pattern";
+  return "custom-pattern";
+}
+function refineFromSamples(samples, options = {}) {
+  if (samples.length === 0) {
+    return generateFromSample("", options);
+  }
+  if (samples.length === 1) {
+    return generateFromSample(samples[0], options);
+  }
+  const patterns = samples.map((s) => generateFromSample(s, { ...options, addWordBoundaries: false }));
+  const allValid = patterns.every((p) => p.valid);
+  if (!allValid) {
+    return generateFromSample(samples[0], options);
+  }
+  const firstSegments = patterns[0].segments;
+  const sameStructure = patterns.every((p) => p.segments.length === firstSegments.length && p.segments.every((seg, i) => seg.type === firstSegments[i].type));
+  if (sameStructure) {
+    return generateFromSample(samples[0], options);
+  }
+  const regexes = patterns.map((p) => `(?:${p.regex.replace(/^\\b|\\b$/g, "")})`);
+  const combinedRegex = regexes.join("|");
+  const validation = validateRegex(combinedRegex, samples[0]);
+  const warnings = analyzePattern(combinedRegex);
+  warnings.push("Pattern combines multiple sample structures using alternation");
+  return {
+    regex: options.addWordBoundaries !== false ? addWordBoundaries(combinedRegex, true) : combinedRegex,
+    valid: validation.valid,
+    matchesSample: samples.every((s) => new RegExp(combinedRegex).test(s)),
+    warnings,
+    segments: patterns[0].segments,
+    suggestedName: "multi-sample-pattern",
+    error: validation.error
+  };
+}
 // packages/ui/main.js
+var CONFIG_STORAGE_KEY = "dataRedactor_config";
 var inputText = "";
 var redactedText = "";
 var mapping = {};
-var config = getDefaultConfig();
+var config = loadConfig();
 var jsonConfig = JSON.stringify(config, null, 2);
 var testInputs = {
   ipv4: "192.168.1.100",
@@ -941,6 +1639,17 @@ var testInputs = {
   ticketNumber: "Ticket #12345",
   name: "John Doe"
 };
+var generatedPattern = null;
+var markedTexts = [];
+var fullSampleTexts = [];
+var sampleCount = 1;
+var editingPatternIndex = null;
+var API_BASE_URL = "http://localhost:3001";
+var communityPatterns = [];
+var communityCurrentPage = 1;
+var communityTotalPages = 1;
+var communityTotalCount = 0;
+var PATTERNS_PER_PAGE = 10;
 var patternFormats = {
   ipv4: {
     tokenFormat: "[I_P_V4_{INDEX}]",
@@ -998,6 +1707,33 @@ var patternFormats = {
     preserveStructure: true
   }
 };
+function loadConfig() {
+  try {
+    const saved = localStorage.getItem(CONFIG_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      const defaults = getDefaultConfig();
+      return {
+        ...defaults,
+        ...parsed,
+        patterns: {
+          ...defaults.patterns,
+          ...parsed.patterns
+        }
+      };
+    }
+  } catch (e) {
+    console.warn("Failed to load config from localStorage:", e);
+  }
+  return getDefaultConfig();
+}
+function saveConfig() {
+  try {
+    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
+  } catch (e) {
+    console.warn("Failed to save config to localStorage:", e);
+  }
+}
 function getDefaultConfig() {
   return {
     patterns: {
@@ -1094,17 +1830,84 @@ document.addEventListener("DOMContentLoaded", init);
 function init() {
   cacheElements();
   bindEvents();
+  syncCustomPatternSampleValues();
   renderPatternCards();
   renderOutputFormatTab();
   updateJsonConfig();
+  loadVersion();
+  initAccordionState();
+  initTabsScroll();
 }
+async function loadVersion() {
+  try {
+    const paths = ["/package.json", "../package.json", "../../package.json"];
+    for (const path of paths) {
+      try {
+        const response = await fetch(path);
+        if (response.ok) {
+          const pkg = await response.json();
+          if (elements.versionBadge && pkg.version) {
+            elements.versionBadge.textContent = `v${pkg.version}`;
+            return;
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+    if (elements.versionBadge) {
+      elements.versionBadge.textContent = "v1.0.4";
+    }
+  } catch (e) {
+    console.warn("Failed to load version:", e);
+    if (elements.versionBadge) {
+      elements.versionBadge.textContent = "v1.0.4";
+    }
+  }
+}
+function initAccordionState() {
+  const accordion = elements.builtinPatternsAccordion;
+  if (!accordion)
+    return;
+  let userToggled = false;
+  accordion.addEventListener("toggle", () => {
+    userToggled = true;
+  });
+  function updateAccordionState() {
+    const isDesktop = window.innerWidth > 1024;
+    if (isDesktop) {
+      accordion.setAttribute("open", "");
+    } else {
+      accordion.removeAttribute("open");
+    }
+    userToggled = false;
+  }
+  updateAccordionState();
+  let resizeTimeout;
+  let lastWidth = window.innerWidth;
+  window.addEventListener("resize", () => {
+    window.clearTimeout(resizeTimeout);
+    resizeTimeout = window.setTimeout(() => {
+      const currentWidth = window.innerWidth;
+      const crossedBreakpoint = lastWidth <= 1024 && currentWidth > 1024 || lastWidth > 1024 && currentWidth <= 1024;
+      if (crossedBreakpoint && !userToggled) {
+        updateAccordionState();
+      }
+      lastWidth = currentWidth;
+    }, 150);
+  });
+}
+function initTabsScroll() {}
+function scrollToActiveTab() {}
 function cacheElements() {
   elements.tabSimple = document.getElementById("tab-simple");
   elements.tabJson = document.getElementById("tab-json");
   elements.tabOutput = document.getElementById("tab-output");
+  elements.tabBuilder = document.getElementById("tab-builder");
   elements.contentSimple = document.getElementById("content-simple");
   elements.contentJson = document.getElementById("content-json");
   elements.contentOutput = document.getElementById("content-output");
+  elements.contentBuilder = document.getElementById("content-builder");
   elements.patternCards = document.getElementById("pattern-cards");
   elements.outputPatterns = document.getElementById("output-patterns");
   elements.inputText = document.getElementById("input-text");
@@ -1119,20 +1922,77 @@ function cacheElements() {
   elements.btnCopyMapping = document.getElementById("btn-copy-mapping");
   elements.btnInsertTest = document.getElementById("btn-insert-test");
   elements.btnImportJson = document.getElementById("btn-import-json");
+  elements.btnSaveConfig = document.getElementById("btn-save-config");
   elements.btnExportEdited = document.getElementById("btn-export-edited");
   elements.btnExportDefault = document.getElementById("btn-export-default");
   elements.btnReset = document.getElementById("btn-reset");
+  elements.versionBadge = document.getElementById("version-badge");
+  elements.btnEnableAll = document.getElementById("btn-enable-all");
+  elements.btnDisableAll = document.getElementById("btn-disable-all");
+  elements.customPatternsSection = document.getElementById("custom-patterns-section");
+  elements.customPatternCards = document.getElementById("custom-pattern-cards");
+  elements.builtinPatternsAccordion = document.getElementById("builtin-patterns-accordion");
+  elements.tabsNav = document.getElementById("tabs-nav");
+  elements.tabsContainer = document.querySelector(".tabs-container");
+  elements.outputCustomSection = document.getElementById("output-custom-section");
+  elements.outputCustomPatterns = document.getElementById("output-custom-patterns");
+  elements.btnViewCompact = document.getElementById("btn-view-compact");
+  elements.btnViewExpanded = document.getElementById("btn-view-expanded");
+  elements.samplesContainer = document.getElementById("samples-container");
+  elements.builderWordBoundaries = document.getElementById("builder-word-boundaries");
+  elements.builderCaseInsensitive = document.getElementById("builder-case-insensitive");
+  elements.btnGeneratePattern = document.getElementById("btn-generate-pattern");
+  elements.btnMarkSelection = document.getElementById("btn-mark-selection");
+  elements.btnClearMarks = document.getElementById("btn-clear-marks");
+  elements.btnAddSample = document.getElementById("btn-add-sample");
+  elements.markedTextsList = document.getElementById("marked-texts-list");
+  elements.markedTextsChips = document.getElementById("marked-texts-chips");
+  elements.builderResult = document.getElementById("builder-result");
+  elements.builderPatternName = document.getElementById("builder-pattern-name");
+  elements.builderRegex = document.getElementById("builder-regex");
+  elements.btnCopyRegex = document.getElementById("btn-copy-regex");
+  elements.builderValidation = document.getElementById("builder-validation");
+  elements.builderWarnings = document.getElementById("builder-warnings");
+  elements.builderExplanation = document.getElementById("builder-explanation");
+  elements.builderSegments = document.getElementById("builder-segments");
+  elements.builderTestInput = document.getElementById("builder-test-input");
+  elements.builderTestResult = document.getElementById("builder-test-result");
+  elements.btnAddPattern = document.getElementById("btn-add-pattern");
+  elements.patternDescription = document.getElementById("pattern-description");
+  elements.patternCategory = document.getElementById("pattern-category");
+  elements.btnSubmitPattern = document.getElementById("btn-submit-pattern");
+  elements.submitStatus = document.getElementById("submit-status");
+  elements.existingPatternsSection = document.getElementById("existing-patterns-section");
+  elements.existingPatternsList = document.getElementById("existing-patterns-list");
+  elements.editingIndicator = document.getElementById("editing-indicator");
+  elements.editingPatternName = document.getElementById("editing-pattern-name");
+  elements.btnCancelEdit = document.getElementById("btn-cancel-edit");
+  elements.tabCommunity = document.getElementById("tab-community");
+  elements.contentCommunity = document.getElementById("content-community");
+  elements.communityPatternsList = document.getElementById("community-patterns-list");
+  elements.communityPagination = document.getElementById("community-pagination");
+  elements.communityEmpty = document.getElementById("community-empty");
+  elements.btnRefreshPatterns = document.getElementById("btn-refresh-patterns");
+  elements.communityCategoryFilter = document.getElementById("community-category-filter");
+  elements.communityStatusFilter = document.getElementById("community-status-filter");
+  elements.btnPrevPage = document.getElementById("btn-prev-page");
+  elements.btnNextPage = document.getElementById("btn-next-page");
+  elements.paginationInfo = document.getElementById("pagination-info");
+  elements.btnGoBuilder = document.getElementById("btn-go-builder");
 }
 function bindEvents() {
   elements.tabSimple.addEventListener("click", () => setActiveTab("simple"));
   elements.tabJson.addEventListener("click", () => setActiveTab("json"));
   elements.tabOutput.addEventListener("click", () => setActiveTab("output"));
+  elements.tabBuilder.addEventListener("click", () => setActiveTab("builder"));
+  elements.tabCommunity.addEventListener("click", () => setActiveTab("community"));
   elements.btnRedact.addEventListener("click", handleRedact);
   elements.btnCopy.addEventListener("click", handleCopy);
   elements.btnClear.addEventListener("click", handleClear);
   elements.btnCopyMapping.addEventListener("click", handleCopyMapping);
   elements.btnInsertTest.addEventListener("click", handleInsertTestData);
   elements.btnImportJson.addEventListener("click", handleImportJson);
+  elements.btnSaveConfig.addEventListener("click", handleSaveConfig);
   elements.btnExportEdited.addEventListener("click", handleExportEditedJson);
   elements.btnExportDefault.addEventListener("click", handleExportDefaultJson);
   elements.btnReset.addEventListener("click", handleResetConfig);
@@ -1142,32 +2002,76 @@ function bindEvents() {
   elements.jsonEditor.addEventListener("input", (e) => {
     handleJsonChange(e.target.value);
   });
+  elements.btnEnableAll.addEventListener("click", handleEnableAll);
+  elements.btnDisableAll.addEventListener("click", handleDisableAll);
+  elements.btnViewCompact.addEventListener("click", () => setOutputView("compact"));
+  elements.btnViewExpanded.addEventListener("click", () => setOutputView("expanded"));
+  elements.btnMarkSelection.addEventListener("click", handleMarkSelection);
+  elements.btnClearMarks.addEventListener("click", handleClearMarks);
+  elements.btnAddSample.addEventListener("click", handleAddSample);
+  elements.btnGeneratePattern.addEventListener("click", handleGeneratePattern);
+  elements.btnCopyRegex.addEventListener("click", handleCopyRegex);
+  elements.btnAddPattern.addEventListener("click", handleAddPattern);
+  elements.builderTestInput.addEventListener("input", handleTestPattern);
+  elements.btnSubmitPattern.addEventListener("click", handleSubmitPattern);
+  elements.btnCancelEdit.addEventListener("click", handleCancelEdit);
+  elements.btnRefreshPatterns.addEventListener("click", fetchCommunityPatterns);
+  elements.communityCategoryFilter.addEventListener("change", fetchCommunityPatterns);
+  elements.communityStatusFilter.addEventListener("change", fetchCommunityPatterns);
+  elements.btnPrevPage.addEventListener("click", () => changePage(-1));
+  elements.btnNextPage.addEventListener("click", () => changePage(1));
+  elements.btnGoBuilder.addEventListener("click", () => setActiveTab("builder"));
 }
 function setActiveTab(tab) {
   elements.tabSimple.classList.toggle("active", tab === "simple");
   elements.tabJson.classList.toggle("active", tab === "json");
   elements.tabOutput.classList.toggle("active", tab === "output");
+  elements.tabBuilder.classList.toggle("active", tab === "builder");
+  elements.tabCommunity.classList.toggle("active", tab === "community");
   elements.contentSimple.classList.toggle("hidden", tab !== "simple");
   elements.contentJson.classList.toggle("hidden", tab !== "json");
   elements.contentOutput.classList.toggle("hidden", tab !== "output");
+  elements.contentBuilder.classList.toggle("hidden", tab !== "builder");
+  elements.contentCommunity.classList.toggle("hidden", tab !== "community");
+  scrollToActiveTab();
+  if (tab === "builder") {
+    renderExistingPatterns();
+  }
+  if (tab === "community") {
+    fetchCommunityPatterns();
+  }
 }
+var PATTERN_LABELS = {
+  ipv4: "IPv4",
+  ipv6: "IPv6",
+  macAddress: "MAC",
+  email: "Email",
+  phone: "Phone",
+  ssn: "SSN",
+  creditCard: "Credit Card",
+  creditCardLast4: "Card Last 4",
+  hostname: "Hostname",
+  ticketNumber: "Ticket #",
+  name: "Name"
+};
 function renderPatternCards() {
   const container = elements.patternCards;
   container.innerHTML = "";
   Object.entries(config.patterns || {}).forEach(([key, value]) => {
     if (key === "custom")
       return;
+    const label = PATTERN_LABELS[key] || key;
     const card = document.createElement("div");
-    card.className = "pattern-card";
+    card.className = `pattern-card${value.enabled ? "" : " disabled"}`;
     card.innerHTML = `
       <label>
         <input type="checkbox" ${value.enabled ? "checked" : ""} data-pattern="${key}">
-        <span>${key}</span>
+        <span>${label}</span>
       </label>
       <select data-pattern="${key}" ${!value.enabled ? "disabled" : ""}>
         <option value="token" ${value.strategy === "token" ? "selected" : ""}>Token</option>
         <option value="mask" ${value.strategy === "mask" ? "selected" : ""}>Mask</option>
-        <option value="formatPreserving" ${value.strategy === "formatPreserving" ? "selected" : ""}>Format-Preserving</option>
+        <option value="formatPreserving" ${value.strategy === "formatPreserving" ? "selected" : ""}>Format</option>
       </select>
     `;
     const checkbox = card.querySelector('input[type="checkbox"]');
@@ -1175,113 +2079,238 @@ function renderPatternCards() {
     checkbox.addEventListener("change", (e) => {
       togglePattern(key, e.target.checked);
       select.disabled = !e.target.checked;
+      card.classList.toggle("disabled", !e.target.checked);
     });
     select.addEventListener("change", (e) => {
       setStrategy(key, e.target.value);
     });
     container.appendChild(card);
   });
+  renderCustomPatternCards();
+}
+function renderCustomPatternCards() {
+  const customPatterns = config.patterns.custom || [];
+  if (customPatterns.length === 0) {
+    elements.customPatternsSection.classList.add("hidden");
+    return;
+  }
+  elements.customPatternsSection.classList.remove("hidden");
+  elements.customPatternCards.innerHTML = "";
+  customPatterns.forEach((pattern, index) => {
+    const card = document.createElement("div");
+    card.className = "pattern-card";
+    card.innerHTML = `
+      <label>
+        <input type="checkbox" checked data-custom-index="${index}">
+        <span>${escapeHtml(pattern.name)}</span>
+      </label>
+      <select data-custom-index="${index}">
+        <option value="token" ${pattern.strategy === "token" ? "selected" : ""}>Token</option>
+        <option value="mask" ${pattern.strategy === "mask" ? "selected" : ""}>Mask</option>
+        <option value="formatPreserving" ${pattern.strategy === "formatPreserving" ? "selected" : ""}>Format</option>
+      </select>
+      <button class="btn-delete-pattern" data-custom-index="${index}" title="Remove pattern">×</button>
+    `;
+    const select = card.querySelector("select");
+    const deleteBtn = card.querySelector(".btn-delete-pattern");
+    select.addEventListener("change", (e) => {
+      config.patterns.custom[index].strategy = e.target.value;
+      updateJsonConfig();
+    });
+    deleteBtn.addEventListener("click", () => {
+      if (confirm(`Remove custom pattern "${pattern.name}"?`)) {
+        config.patterns.custom.splice(index, 1);
+        updateJsonConfig();
+        renderPatternCards();
+      }
+    });
+    elements.customPatternCards.appendChild(card);
+  });
+}
+function handleEnableAll() {
+  Object.keys(config.patterns).forEach((key) => {
+    if (key !== "custom" && config.patterns[key]) {
+      config.patterns[key].enabled = true;
+    }
+  });
+  updateJsonConfig();
+  renderPatternCards();
+}
+function handleDisableAll() {
+  Object.keys(config.patterns).forEach((key) => {
+    if (key !== "custom" && config.patterns[key]) {
+      config.patterns[key].enabled = false;
+    }
+  });
+  updateJsonConfig();
+  renderPatternCards();
+}
+var outputView = "compact";
+function setOutputView(view) {
+  outputView = view;
+  elements.btnViewCompact.classList.toggle("active", view === "compact");
+  elements.btnViewExpanded.classList.toggle("active", view === "expanded");
+  elements.outputPatterns.classList.toggle("expanded", view === "expanded");
+  if (elements.outputCustomPatterns) {
+    elements.outputCustomPatterns.classList.toggle("expanded", view === "expanded");
+  }
 }
 function renderOutputFormatTab() {
   const container = elements.outputPatterns;
   container.innerHTML = "";
-  Object.entries(config.patterns || {}).forEach(([key]) => {
+  Object.entries(config.patterns || {}).forEach(([key, patternConfig]) => {
     if (key === "custom")
       return;
+    if (!patternConfig.enabled)
+      return;
+    const label = PATTERN_LABELS[key] || key;
     const testInput = testInputs[key] || "";
-    const format = patternFormats[key] || {
-      tokenFormat: "[{TYPE}_{INDEX}]",
-      maskChar: "*",
-      preserveStructure: true
-    };
-    const card = document.createElement("div");
-    card.className = "pattern-test-card";
-    card.innerHTML = `
-      <h3>${key}</h3>
-      <label class="test-input-label">Test Input:</label>
-      <input type="text" class="test-input" value="${escapeHtml(testInput)}" data-pattern="${key}" placeholder="Enter ${key} to test...">
-
-      <div class="strategy-grid">
-        <!-- Token Strategy -->
-        <div class="strategy-card token">
-          <div class="strategy-title">Token Strategy</div>
-          <div class="format-input-group">
-            <label>Token Format:</label>
-            <input type="text" value="${escapeHtml(format.tokenFormat)}" data-pattern="${key}" data-field="tokenFormat" placeholder="[PATTERN_{INDEX}]">
-            <div class="format-hint">Use <code>{INDEX}</code> for counter</div>
-          </div>
-          <div class="output-box">
-            <div class="output-label">Output:</div>
-            <code class="output-value" data-output="${key}-token"></code>
-          </div>
-          <button class="copy-btn" data-copy="${key}-token">Copy Token Output</button>
+    const row = document.createElement("div");
+    row.className = "pattern-row";
+    row.innerHTML = `
+      <div class="pattern-row-name">${label}</div>
+      <div class="pattern-row-input">
+        <input type="text" value="${escapeHtml(testInput)}" data-pattern="${key}" placeholder="Test ${label}...">
+      </div>
+      <div class="pattern-row-outputs">
+        <div class="output-chip token" data-output="${key}-token" title="Token: Replaces with [TYPE_INDEX] placeholder">
+          <span class="chip-label">Token</span>
+          <span class="chip-value"></span>
         </div>
-
-        <!-- Mask Strategy -->
-        <div class="strategy-card mask">
-          <div class="strategy-title">Mask Strategy</div>
-          <div class="format-input-group">
-            <label>Mask Character:</label>
-            <input type="text" value="${format.maskChar}" maxlength="1" data-pattern="${key}" data-field="maskChar" placeholder="*">
-          </div>
-          <label class="preserve-structure-label">
-            <input type="checkbox" ${format.preserveStructure ? "checked" : ""} data-pattern="${key}" data-field="preserveStructure">
-            Preserve structure
-          </label>
-          <div class="output-box">
-            <div class="output-label">Output:</div>
-            <code class="output-value" data-output="${key}-mask"></code>
-          </div>
-          <button class="copy-btn" data-copy="${key}-mask">Copy Mask Output</button>
+        <div class="output-chip mask" data-output="${key}-mask" title="Mask: Replaces characters with asterisks">
+          <span class="chip-label">Mask</span>
+          <span class="chip-value"></span>
         </div>
-
-        <!-- Format-Preserving Strategy -->
-        <div class="strategy-card format-preserving">
-          <div class="strategy-title">Format-Preserving</div>
-          <div class="auto-info">Automatically maintains input format with realistic fake data</div>
-          <div class="output-box">
-            <div class="output-label">Output:</div>
-            <code class="output-value" data-output="${key}-format"></code>
-          </div>
-          <button class="copy-btn" data-copy="${key}-format">Copy Format-Preserving Output</button>
+        <div class="output-chip format" data-output="${key}-format" title="Format: Generates realistic fake data">
+          <span class="chip-label">Format</span>
+          <span class="chip-value"></span>
         </div>
       </div>
     `;
-    container.appendChild(card);
-    const testInputEl = card.querySelector(".test-input");
-    testInputEl.addEventListener("input", (e) => {
+    container.appendChild(row);
+    const inputEl = row.querySelector("input");
+    inputEl.addEventListener("input", (e) => {
       testInputs[key] = e.target.value;
       updateOutputForPattern(key);
     });
-    card.querySelectorAll("[data-field]").forEach((input) => {
-      input.addEventListener("input", (e) => {
-        const field = e.target.dataset.field;
-        const pattern = e.target.dataset.pattern;
-        if (field === "preserveStructure") {
-          patternFormats[pattern][field] = e.target.checked;
-        } else {
-          patternFormats[pattern][field] = e.target.value;
+    row.querySelectorAll(".output-chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const text = chip.querySelector(".chip-value").textContent;
+        if (text && text !== "-") {
+          copyToClipboard(text, "Output");
         }
-        updateOutputForPattern(pattern);
-      });
-      if (input.type === "checkbox") {
-        input.addEventListener("change", (e) => {
-          const field = e.target.dataset.field;
-          const pattern = e.target.dataset.pattern;
-          patternFormats[pattern][field] = e.target.checked;
-          updateOutputForPattern(pattern);
-        });
-      }
-    });
-    card.querySelectorAll("[data-copy]").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        const outputKey = e.target.dataset.copy;
-        const outputEl = card.querySelector(`[data-output="${outputKey}"]`);
-        copyToClipboard(outputEl.textContent, "Output");
       });
     });
     updateOutputForPattern(key);
   });
+  renderOutputCustomPatterns();
+}
+function renderOutputCustomPatterns() {
+  const customPatterns = config.patterns.custom || [];
+  if (customPatterns.length === 0) {
+    elements.outputCustomSection.classList.add("hidden");
+    return;
+  }
+  elements.outputCustomSection.classList.remove("hidden");
+  elements.outputCustomPatterns.innerHTML = "";
+  customPatterns.forEach((pattern, index) => {
+    const key = `custom_${index}`;
+    if (pattern.sampleValue && !testInputs[key]) {
+      testInputs[key] = pattern.sampleValue;
+    }
+    const testInput = testInputs[key] || "";
+    const row = document.createElement("div");
+    row.className = "pattern-row";
+    row.innerHTML = `
+      <div class="pattern-row-name">${escapeHtml(pattern.name)}</div>
+      <div class="pattern-row-input">
+        <input type="text" value="${escapeHtml(testInput)}" data-custom-pattern="${index}" placeholder="Test ${escapeHtml(pattern.name)}...">
+      </div>
+      <div class="pattern-row-outputs">
+        <div class="output-chip token" data-output="${key}-token" title="Token: Replaces with [${pattern.name.toUpperCase()}_INDEX] placeholder">
+          <span class="chip-label">Token</span>
+          <span class="chip-value"></span>
+        </div>
+        <div class="output-chip mask" data-output="${key}-mask" title="Mask: Replaces characters with asterisks">
+          <span class="chip-label">Mask</span>
+          <span class="chip-value"></span>
+        </div>
+        <div class="output-chip format" data-output="${key}-format" title="Format: Generates realistic fake data">
+          <span class="chip-label">Format</span>
+          <span class="chip-value"></span>
+        </div>
+      </div>
+    `;
+    elements.outputCustomPatterns.appendChild(row);
+    const inputEl = row.querySelector("input");
+    inputEl.addEventListener("input", (e) => {
+      testInputs[key] = e.target.value;
+      updateOutputForCustomPattern(index, key);
+    });
+    row.querySelectorAll(".output-chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const text = chip.querySelector(".chip-value").textContent;
+        if (text && text !== "-") {
+          copyToClipboard(text, "Output");
+        }
+      });
+    });
+    updateOutputForCustomPattern(index, key);
+  });
+  elements.outputCustomPatterns.classList.toggle("expanded", outputView === "expanded");
+}
+function updateOutputForCustomPattern(index, key) {
+  const pattern = config.patterns.custom[index];
+  if (!pattern)
+    return;
+  const testInput = testInputs[key] || "";
+  const format = patternFormats[key] || {
+    tokenFormat: `[${pattern.name.toUpperCase()}_{INDEX}]`,
+    maskChar: "*",
+    preserveStructure: true
+  };
+  const strategies2 = ["token", "mask", "formatPreserving"];
+  const outputKeys = ["token", "mask", "format"];
+  const labels = ["Token", "Mask", "Format"];
+  strategies2.forEach((strategy, i) => {
+    const output = testCustomPatternWithStrategy(pattern, testInput, strategy, format);
+    const chipValue = document.querySelector(`[data-output="${key}-${outputKeys[i]}"] .chip-value`);
+    const chip = document.querySelector(`[data-output="${key}-${outputKeys[i]}"]`);
+    if (chipValue) {
+      chipValue.textContent = output || "-";
+    }
+    if (chip) {
+      chip.title = output ? `${labels[i]}: ${output} (click to copy)` : `${labels[i]}: No output`;
+      chip.classList.toggle("has-value", !!output);
+    }
+  });
+}
+function testCustomPatternWithStrategy(pattern, testInput, strategy, format) {
+  if (!testInput)
+    return "";
+  try {
+    const testConfig = {
+      ...config,
+      formatOptions: {
+        tokenFormat: format.tokenFormat,
+        maskChar: format.maskChar,
+        preserveStructure: format.preserveStructure
+      },
+      patterns: {
+        custom: [
+          {
+            ...pattern,
+            strategy
+          }
+        ]
+      }
+    };
+    const redactor = new DataRedactor(testConfig);
+    const result = redactor.redact(testInput);
+    return result.redactedText !== testInput ? result.redactedText : "";
+  } catch {
+    return "";
+  }
 }
 function updateOutputForPattern(key) {
   const testInput = testInputs[key] || "";
@@ -1291,17 +2320,35 @@ function updateOutputForPattern(key) {
     preserveStructure: true
   };
   const tokenOutput = testWithStrategy(key, testInput, "token", format);
-  const tokenEl = document.querySelector(`[data-output="${key}-token"]`);
-  if (tokenEl)
-    tokenEl.textContent = tokenOutput;
+  const tokenChipValue = document.querySelector(`[data-output="${key}-token"] .chip-value`);
+  const tokenChip = document.querySelector(`[data-output="${key}-token"]`);
+  if (tokenChipValue) {
+    tokenChipValue.textContent = tokenOutput || "-";
+  }
+  if (tokenChip) {
+    tokenChip.title = tokenOutput ? `Token: ${tokenOutput} (click to copy)` : "Token: No output";
+    tokenChip.classList.toggle("has-value", !!tokenOutput);
+  }
   const maskOutput = testWithStrategy(key, testInput, "mask", format);
-  const maskEl = document.querySelector(`[data-output="${key}-mask"]`);
-  if (maskEl)
-    maskEl.textContent = maskOutput;
+  const maskChipValue = document.querySelector(`[data-output="${key}-mask"] .chip-value`);
+  const maskChip = document.querySelector(`[data-output="${key}-mask"]`);
+  if (maskChipValue) {
+    maskChipValue.textContent = maskOutput || "-";
+  }
+  if (maskChip) {
+    maskChip.title = maskOutput ? `Mask: ${maskOutput} (click to copy)` : "Mask: No output";
+    maskChip.classList.toggle("has-value", !!maskOutput);
+  }
   const formatOutput = testWithStrategy(key, testInput, "formatPreserving", format);
-  const formatEl = document.querySelector(`[data-output="${key}-format"]`);
-  if (formatEl)
-    formatEl.textContent = formatOutput;
+  const formatChipValue = document.querySelector(`[data-output="${key}-format"] .chip-value`);
+  const formatChip = document.querySelector(`[data-output="${key}-format"]`);
+  if (formatChipValue) {
+    formatChipValue.textContent = formatOutput || "-";
+  }
+  if (formatChip) {
+    formatChip.title = formatOutput ? `Format: ${formatOutput} (click to copy)` : "Format: No output";
+    formatChip.classList.toggle("has-value", !!formatOutput);
+  }
 }
 function testWithStrategy(key, testInput, strategy, format) {
   try {
@@ -1341,6 +2388,7 @@ function updateJsonConfig() {
   if (elements.jsonEditor) {
     elements.jsonEditor.value = jsonConfig;
   }
+  saveConfig();
 }
 function handleRedact() {
   try {
@@ -1385,12 +2433,22 @@ function handleJsonChange(value) {
   try {
     const parsed = JSON.parse(value);
     config = parsed;
+    syncCustomPatternSampleValues();
     renderPatternCards();
     renderOutputFormatTab();
   } catch {
     elements.jsonError.textContent = "Invalid JSON - will not apply until fixed";
     elements.jsonError.classList.remove("hidden");
   }
+}
+function syncCustomPatternSampleValues() {
+  const customPatterns = config.patterns?.custom || [];
+  customPatterns.forEach((pattern, index) => {
+    const key = `custom_${index}`;
+    if (pattern.sampleValue && !testInputs[key]) {
+      testInputs[key] = pattern.sampleValue;
+    }
+  });
 }
 function handleImportJson() {
   const input = document.createElement("input");
@@ -1405,6 +2463,7 @@ function handleImportJson() {
           const content = event.target.result;
           const parsed = JSON.parse(content);
           config = parsed;
+          syncCustomPatternSampleValues();
           updateJsonConfig();
           renderPatternCards();
           renderOutputFormatTab();
@@ -1418,6 +2477,26 @@ function handleImportJson() {
   };
   input.click();
 }
+function handleSaveConfig() {
+  try {
+    const parsed = JSON.parse(jsonConfig);
+    config = parsed;
+    saveConfig();
+    syncCustomPatternSampleValues();
+    renderPatternCards();
+    renderOutputFormatTab();
+    const btn = elements.btnSaveConfig;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="json-btn-icon">&#x2714;</span> Saved!';
+    btn.style.background = "linear-gradient(135deg, #059669 0%, #10b981 100%)";
+    setTimeout(() => {
+      btn.innerHTML = originalText;
+      btn.style.background = "";
+    }, 1500);
+  } catch {
+    alert("Cannot save: Invalid JSON. Please fix the errors first.");
+  }
+}
 function handleExportEditedJson() {
   downloadJson(jsonConfig, "redactor-config-edited.json");
 }
@@ -1425,6 +2504,11 @@ function handleExportDefaultJson() {
   downloadJson(JSON.stringify(DEFAULT_CONFIG, null, 2), "redactor-config-default.json");
 }
 function handleResetConfig() {
+  try {
+    localStorage.removeItem(CONFIG_STORAGE_KEY);
+  } catch (e) {
+    console.warn("Failed to clear config from localStorage:", e);
+  }
   config = getDefaultConfig();
   updateJsonConfig();
   renderPatternCards();
@@ -1437,6 +2521,446 @@ function renderMapping() {
   }
   elements.mappingContainer.classList.remove("hidden");
   elements.mappingContent.innerHTML = Object.entries(mapping).map(([original, redacted]) => `<div class="mapping-item"><strong>${escapeHtml(original)}</strong> → ${escapeHtml(redacted)}</div>`).join("");
+}
+function renderExistingPatterns() {
+  const customPatterns = config.patterns.custom || [];
+  if (customPatterns.length === 0) {
+    elements.existingPatternsSection.classList.add("hidden");
+    return;
+  }
+  elements.existingPatternsSection.classList.remove("hidden");
+  elements.existingPatternsList.innerHTML = "";
+  customPatterns.forEach((pattern, index) => {
+    const card = document.createElement("div");
+    card.className = `existing-pattern-card${editingPatternIndex === index ? " editing" : ""}`;
+    card.innerHTML = `
+      <div class="existing-pattern-info">
+        <div class="existing-pattern-name">${escapeHtml(pattern.name)}</div>
+        <div class="existing-pattern-regex">${escapeHtml(pattern.regex)}</div>
+        ${pattern.sampleValue ? `<div class="existing-pattern-sample">Sample: <code>${escapeHtml(pattern.sampleValue)}</code></div>` : ""}
+      </div>
+      <div class="existing-pattern-actions">
+        <button class="btn-edit-pattern" data-index="${index}">Edit</button>
+      </div>
+    `;
+    card.querySelector(".btn-edit-pattern").addEventListener("click", (e) => {
+      e.stopPropagation();
+      loadPatternForEditing(index);
+    });
+    card.addEventListener("click", () => {
+      loadPatternForEditing(index);
+    });
+    elements.existingPatternsList.appendChild(card);
+  });
+}
+function loadPatternForEditing(index) {
+  const pattern = config.patterns.custom[index];
+  if (!pattern)
+    return;
+  editingPatternIndex = index;
+  elements.editingIndicator.classList.add("visible");
+  elements.editingPatternName.textContent = pattern.name;
+  handleClearMarks();
+  generatedPattern = null;
+  elements.builderResult.classList.add("hidden");
+  elements.samplesContainer.innerHTML = `
+    <div class="sample-wrapper" data-sample-index="0">
+      <div class="sample-header">
+        <span class="sample-label">Sample 1</span>
+      </div>
+      <div class="builder-input-editable sample-input" contenteditable="true" placeholder="Paste your sample data here..."></div>
+    </div>
+  `;
+  sampleCount = 1;
+  if (pattern.sampleValue) {
+    const firstSample = elements.samplesContainer.querySelector(".sample-input");
+    const mark = document.createElement("mark");
+    mark.className = "marked-text";
+    mark.textContent = pattern.sampleValue;
+    firstSample.appendChild(mark);
+    markedTexts = [pattern.sampleValue];
+    fullSampleTexts = [pattern.sampleValue];
+    updateMarkedTextsDisplay();
+  }
+  elements.builderPatternName.value = pattern.name;
+  renderExistingPatterns();
+  elements.samplesContainer.scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  });
+}
+function handleCancelEdit() {
+  editingPatternIndex = null;
+  elements.editingIndicator.classList.remove("visible");
+  handleClearMarks();
+  generatedPattern = null;
+  elements.builderResult.classList.add("hidden");
+  elements.samplesContainer.innerHTML = `
+    <div class="sample-wrapper" data-sample-index="0">
+      <div class="sample-header">
+        <span class="sample-label">Sample 1</span>
+      </div>
+      <div class="builder-input-editable sample-input" contenteditable="true" placeholder="Paste your sample data here..."></div>
+    </div>
+  `;
+  sampleCount = 1;
+  renderExistingPatterns();
+}
+function getSampleInputs() {
+  return elements.samplesContainer.querySelectorAll(".sample-input");
+}
+function handleAddSample() {
+  sampleCount++;
+  const wrapper = document.createElement("div");
+  wrapper.className = "sample-wrapper";
+  wrapper.dataset.sampleIndex = sampleCount - 1;
+  wrapper.innerHTML = `
+    <div class="sample-header">
+      <span class="sample-label">Sample ${sampleCount}</span>
+      <button class="btn-remove-sample" onclick="this.closest('.sample-wrapper').remove(); updateSampleLabels();">Remove</button>
+    </div>
+    <div class="builder-input-editable sample-input" contenteditable="true" placeholder="Paste another sample here..."></div>
+  `;
+  elements.samplesContainer.appendChild(wrapper);
+}
+window.updateSampleLabels = function() {
+  const wrappers = elements.samplesContainer.querySelectorAll(".sample-wrapper");
+  wrappers.forEach((wrapper, index) => {
+    wrapper.querySelector(".sample-label").textContent = `Sample ${index + 1}`;
+    wrapper.dataset.sampleIndex = index;
+  });
+  sampleCount = wrappers.length;
+};
+function handleMarkSelection() {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    alert("Please select some text first, then click Mark Selection");
+    return;
+  }
+  const range = selection.getRangeAt(0);
+  let container = null;
+  const sampleInputs = getSampleInputs();
+  for (const input of sampleInputs) {
+    if (input.contains(range.commonAncestorContainer)) {
+      container = input;
+      break;
+    }
+  }
+  if (!container) {
+    alert("Please select text within one of the sample data areas");
+    return;
+  }
+  const mark = document.createElement("mark");
+  mark.className = "marked-text";
+  try {
+    range.surroundContents(mark);
+  } catch {
+    const fragment = range.extractContents();
+    mark.appendChild(fragment);
+    range.insertNode(mark);
+  }
+  const markedValue = mark.textContent;
+  if (markedValue && !markedTexts.includes(markedValue)) {
+    markedTexts.push(markedValue);
+    fullSampleTexts.push(container.textContent);
+  }
+  updateMarkedTextsDisplay();
+  selection.removeAllRanges();
+}
+function handleClearMarks() {
+  const sampleInputs = getSampleInputs();
+  sampleInputs.forEach((container) => {
+    const marks = container.querySelectorAll("mark, .marked-text");
+    marks.forEach((mark) => {
+      const text = document.createTextNode(mark.textContent);
+      mark.parentNode.replaceChild(text, mark);
+    });
+    container.normalize();
+  });
+  markedTexts = [];
+  fullSampleTexts = [];
+  updateMarkedTextsDisplay();
+}
+function updateMarkedTextsDisplay() {
+  if (markedTexts.length > 0) {
+    elements.markedTextsList.classList.remove("hidden");
+    elements.markedTextsChips.innerHTML = markedTexts.map((text, index) => `
+        <span class="marked-chip">
+          <span>${escapeHtml(text)}</span>
+          <button class="chip-remove" onclick="removeMarkedText(${index})">×</button>
+        </span>
+      `).join("");
+  } else {
+    elements.markedTextsList.classList.add("hidden");
+    elements.markedTextsChips.innerHTML = "";
+  }
+}
+window.removeMarkedText = function(index) {
+  markedTexts.splice(index, 1);
+  fullSampleTexts.splice(index, 1);
+  updateMarkedTextsDisplay();
+};
+function handleGeneratePattern() {
+  if (markedTexts.length > 0) {
+    const options = {
+      addWordBoundaries: elements.builderWordBoundaries.checked,
+      caseInsensitive: elements.builderCaseInsensitive.checked
+    };
+    if (markedTexts.length === 1) {
+      generatedPattern = generateFromSample(markedTexts[0], options);
+    } else {
+      generatedPattern = refineFromSamples(markedTexts, options);
+    }
+    renderPatternResult();
+    return;
+  }
+  const firstSample = getSampleInputs()[0];
+  const sampleText = firstSample ? firstSample.textContent.trim() : "";
+  if (!sampleText) {
+    alert("Please enter sample data and mark the text you want to match");
+    return;
+  }
+  alert("Please select and mark the specific text you want to create a pattern for");
+}
+function renderPatternResult() {
+  if (!generatedPattern) {
+    elements.builderResult.classList.add("hidden");
+    return;
+  }
+  elements.builderResult.classList.remove("hidden");
+  elements.builderPatternName.value = generatedPattern.suggestedName;
+  elements.builderRegex.textContent = generatedPattern.regex;
+  const allSamplesMatch = markedTexts.every((sample) => {
+    try {
+      const flags = elements.builderCaseInsensitive.checked ? "i" : "";
+      const regex = new RegExp(generatedPattern.regex, flags);
+      return regex.test(sample);
+    } catch {
+      return false;
+    }
+  });
+  elements.builderValidation.className = "validation-status " + (generatedPattern.valid ? "valid" : "invalid");
+  if (generatedPattern.valid) {
+    if (markedTexts.length > 1) {
+      elements.builderValidation.textContent = allSamplesMatch ? `Pattern is valid and matches all ${markedTexts.length} samples` : `Pattern is valid but does not match all samples`;
+    } else {
+      elements.builderValidation.textContent = generatedPattern.matchesSample ? "Pattern is valid and matches the sample data" : "Pattern is valid but does not match the sample data";
+    }
+  } else {
+    elements.builderValidation.textContent = `Invalid pattern: ${generatedPattern.error || "Unknown error"}`;
+  }
+  elements.builderWarnings.innerHTML = generatedPattern.warnings.map((w) => `<div class="warning-item">${escapeHtml(w)}</div>`).join("");
+  elements.builderExplanation.innerHTML = generatePatternExplanation(generatedPattern);
+  elements.builderSegments.innerHTML = generatedPattern.segments.map((s) => `<span class="segment-chip ${s.type}">${escapeHtml(s.description)}</span>`).join("");
+  const testText = fullSampleTexts.length > 0 ? fullSampleTexts.join(`
+
+`) : markedTexts.join(`
+`);
+  elements.builderTestInput.value = testText;
+  handleTestPattern();
+}
+function generatePatternExplanation(pattern) {
+  if (!pattern || !pattern.segments || pattern.segments.length === 0) {
+    return "<p>No pattern segments to explain.</p>";
+  }
+  const segments = pattern.segments;
+  let explanation = '<span class="explanation-title">This pattern matches text that:</span>';
+  explanation += "<ul>";
+  let position = 1;
+  for (const segment of segments) {
+    let desc = "";
+    switch (segment.type) {
+      case "digit":
+        if (segment.minLength === segment.maxLength) {
+          desc = `Has exactly <code>${segment.minLength}</code> digit(s) at position ${position}`;
+        } else {
+          desc = `Has <code>${segment.minLength}-${segment.maxLength}</code> digits at position ${position}`;
+        }
+        break;
+      case "lower":
+        if (segment.minLength === segment.maxLength) {
+          desc = `Has exactly <code>${segment.minLength}</code> lowercase letter(s) at position ${position}`;
+        } else {
+          desc = `Has <code>${segment.minLength}-${segment.maxLength}</code> lowercase letters at position ${position}`;
+        }
+        break;
+      case "upper":
+        if (segment.minLength === segment.maxLength) {
+          desc = `Has exactly <code>${segment.minLength}</code> uppercase letter(s) at position ${position}`;
+        } else {
+          desc = `Has <code>${segment.minLength}-${segment.maxLength}</code> uppercase letters at position ${position}`;
+        }
+        break;
+      case "hex":
+        desc = `Has <code>${segment.minLength}</code> hexadecimal character(s) (0-9, a-f) at position ${position}`;
+        break;
+      case "literal":
+        desc = `Contains the exact text <code>${escapeHtml(segment.originalValue || segment.description.replace('literal "', "").replace('"', ""))}</code>`;
+        break;
+      case "whitespace":
+        desc = `Has whitespace at position ${position}`;
+        break;
+      case "uuid":
+        desc = `Is a UUID (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)`;
+        break;
+      case "ipv4":
+        desc = `Is an IPv4 address (format: xxx.xxx.xxx.xxx)`;
+        break;
+      case "mac":
+        desc = `Is a MAC address`;
+        break;
+      default:
+        desc = segment.description;
+    }
+    if (desc) {
+      explanation += `<li>${desc}</li>`;
+      position++;
+    }
+  }
+  explanation += "</ul>";
+  if (markedTexts.length > 1) {
+    explanation += `<p><strong>Generated from ${markedTexts.length} samples:</strong> The pattern was refined to match common structure across all your marked examples.</p>`;
+  }
+  explanation += `<p><strong>Regex breakdown:</strong> <code>${escapeHtml(pattern.regex)}</code></p>`;
+  return explanation;
+}
+function handleCopyRegex() {
+  if (generatedPattern && generatedPattern.regex) {
+    copyToClipboard(generatedPattern.regex, "Regex pattern");
+  }
+}
+function handleTestPattern() {
+  const testInput = elements.builderTestInput.value;
+  if (!generatedPattern || !generatedPattern.regex || !testInput) {
+    elements.builderTestResult.textContent = "";
+    elements.builderTestResult.className = "test-result";
+    return;
+  }
+  try {
+    const flags = elements.builderCaseInsensitive.checked ? "gi" : "g";
+    const regex = new RegExp(generatedPattern.regex, flags);
+    const matches = testInput.match(regex);
+    if (matches && matches.length > 0) {
+      const uniqueMatches = [...new Set(matches)];
+      elements.builderTestResult.textContent = `Found ${matches.length} match(es): "${uniqueMatches.join('", "')}"`;
+      elements.builderTestResult.className = "test-result match";
+    } else {
+      elements.builderTestResult.textContent = "No match found";
+      elements.builderTestResult.className = "test-result no-match";
+    }
+  } catch (error) {
+    elements.builderTestResult.textContent = `Error: ${error.message}`;
+    elements.builderTestResult.className = "test-result no-match";
+  }
+}
+function handleAddPattern() {
+  if (!generatedPattern || !generatedPattern.valid) {
+    alert("Cannot add an invalid pattern");
+    return;
+  }
+  const patternName = elements.builderPatternName.value.trim();
+  if (!patternName) {
+    alert("Please enter a pattern name");
+    return;
+  }
+  if (!config.patterns.custom) {
+    config.patterns.custom = [];
+  }
+  const sampleValue = markedTexts.length > 0 ? markedTexts[0] : "";
+  if (editingPatternIndex !== null) {
+    const existingStrategy = config.patterns.custom[editingPatternIndex].strategy || "token";
+    config.patterns.custom[editingPatternIndex] = {
+      name: patternName,
+      regex: generatedPattern.regex,
+      strategy: existingStrategy,
+      sampleValue
+    };
+    testInputs[`custom_${editingPatternIndex}`] = sampleValue;
+    editingPatternIndex = null;
+    elements.editingIndicator.classList.remove("visible");
+    updateJsonConfig();
+    renderPatternCards();
+    renderOutputFormatTab();
+    setActiveTab("output");
+    alert(`Pattern "${patternName}" updated! You can see the changes in the Output Format tab.`);
+  } else {
+    config.patterns.custom.push({
+      name: patternName,
+      regex: generatedPattern.regex,
+      strategy: "token",
+      sampleValue
+    });
+    const customIndex = config.patterns.custom.length - 1;
+    testInputs[`custom_${customIndex}`] = sampleValue;
+    updateJsonConfig();
+    renderPatternCards();
+    renderOutputFormatTab();
+    setActiveTab("output");
+    alert(`Pattern "${patternName}" added! You can see it in the Output Format tab with your sample value pre-filled.`);
+  }
+}
+async function handleSubmitPattern() {
+  if (!generatedPattern || !generatedPattern.valid) {
+    showSubmitStatus("Please generate a valid pattern first", "error");
+    return;
+  }
+  const patternName = elements.builderPatternName.value.trim();
+  const description = elements.patternDescription.value.trim();
+  const category = elements.patternCategory.value;
+  if (!patternName) {
+    showSubmitStatus("Please enter a pattern name", "error");
+    return;
+  }
+  if (!description) {
+    showSubmitStatus("Please enter a description for the pattern", "error");
+    return;
+  }
+  if (!category) {
+    showSubmitStatus("Please select a category", "error");
+    return;
+  }
+  const submission = {
+    name: patternName,
+    regex: generatedPattern.regex,
+    description,
+    category,
+    samples: markedTexts,
+    segments: generatedPattern.segments
+  };
+  showSubmitStatus("Submitting pattern...", "pending");
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/patterns`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(submission)
+    });
+    if (response.ok) {
+      const data = await response.json();
+      showSubmitStatus(`Pattern submitted successfully! ID: ${data.id}. It will appear in the Community tab after review.`, "success");
+      elements.patternDescription.value = "";
+      elements.patternCategory.value = "";
+      console.log("Pattern submitted to API:", data);
+    } else {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to submit pattern");
+    }
+  } catch (error) {
+    console.error("API submission failed, storing locally:", error);
+    const submissions = JSON.parse(localStorage.getItem("dataRedactor_submissions") || "[]");
+    submissions.push({ ...submission, submittedAt: new Date().toISOString() });
+    localStorage.setItem("dataRedactor_submissions", JSON.stringify(submissions));
+    showSubmitStatus("API offline - Pattern saved locally. Start the API server and visit the Community tab to sync.", "warning");
+  }
+}
+function showSubmitStatus(message, type) {
+  elements.submitStatus.textContent = message;
+  elements.submitStatus.className = `submit-status ${type}`;
+  elements.submitStatus.classList.remove("hidden");
+  if (type === "success") {
+    setTimeout(() => {
+      elements.submitStatus.classList.add("hidden");
+    }, 5000);
+  }
 }
 function copyToClipboard(text, label) {
   navigator.clipboard.writeText(text);
@@ -1456,3 +2980,149 @@ function escapeHtml(text) {
   div.textContent = text;
   return div.innerHTML;
 }
+async function fetchCommunityPatterns() {
+  const category = elements.communityCategoryFilter.value;
+  const status = elements.communityStatusFilter.value;
+  const offset = (communityCurrentPage - 1) * PATTERNS_PER_PAGE;
+  elements.communityPatternsList.innerHTML = '<div class="loading-message">Loading patterns...</div>';
+  try {
+    let url = `${API_BASE_URL}/api/patterns?limit=${PATTERNS_PER_PAGE}&offset=${offset}`;
+    if (category)
+      url += `&category=${category}`;
+    if (status)
+      url += `&status=${status}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    communityPatterns = data.patterns || [];
+    communityTotalCount = data.count || 0;
+    communityTotalPages = Math.ceil(communityTotalCount / PATTERNS_PER_PAGE) || 1;
+    renderCommunityPatterns();
+    updatePagination();
+  } catch (error) {
+    console.error("Failed to fetch community patterns:", error);
+    elements.communityPatternsList.innerHTML = `
+      <div class="error-message">
+        <p>Failed to load patterns. Make sure the API server is running.</p>
+        <code>bun run packages/api/server.ts</code>
+      </div>
+    `;
+    elements.communityPagination.classList.add("hidden");
+    elements.communityEmpty.classList.add("hidden");
+  }
+}
+function renderCommunityPatterns() {
+  if (communityPatterns.length === 0) {
+    elements.communityPatternsList.innerHTML = "";
+    elements.communityEmpty.classList.remove("hidden");
+    elements.communityPagination.classList.add("hidden");
+    return;
+  }
+  elements.communityEmpty.classList.add("hidden");
+  elements.communityPatternsList.innerHTML = communityPatterns.map((pattern) => `
+    <div class="community-pattern-card" data-id="${pattern.id}">
+      <div class="community-pattern-header">
+        <div class="community-pattern-name">${escapeHtml(pattern.name)}</div>
+        <span class="community-pattern-status ${pattern.status}">${pattern.status}</span>
+      </div>
+      <div class="community-pattern-regex"><code>${escapeHtml(pattern.regex)}</code></div>
+      ${pattern.description ? `<div class="community-pattern-desc">${escapeHtml(pattern.description)}</div>` : ""}
+      <div class="community-pattern-meta">
+        <span class="community-pattern-category">${escapeHtml(pattern.category || "custom")}</span>
+        <span class="community-pattern-stats">
+          <span class="stat" title="Upvotes">\uD83D\uDC4D ${pattern.upvotes || 0}</span>
+          <span class="stat" title="Downvotes">\uD83D\uDC4E ${pattern.downvotes || 0}</span>
+          <span class="stat" title="Times used">\uD83D\uDCCA ${pattern.usage_count || 0}</span>
+        </span>
+      </div>
+      ${pattern.samples && pattern.samples.length > 0 ? `
+        <div class="community-pattern-samples">
+          <span class="samples-label">Samples:</span>
+          ${pattern.samples.slice(0, 3).map((s) => `<code class="sample-chip">${escapeHtml(s)}</code>`).join("")}
+          ${pattern.samples.length > 3 ? `<span class="more-samples">+${pattern.samples.length - 3} more</span>` : ""}
+        </div>
+      ` : ""}
+      <div class="community-pattern-actions">
+        <button class="btn-vote btn-upvote" onclick="handleVote('${pattern.id}', 'up')" title="Upvote this pattern">
+          \uD83D\uDC4D Upvote
+        </button>
+        <button class="btn-vote btn-downvote" onclick="handleVote('${pattern.id}', 'down')" title="Downvote this pattern">
+          \uD83D\uDC4E Downvote
+        </button>
+        <button class="btn-use-pattern" onclick="handleUsePattern('${pattern.id}')" title="Add to your configuration">
+          ✅ Use Pattern
+        </button>
+      </div>
+    </div>
+  `).join("");
+}
+function updatePagination() {
+  if (communityTotalCount <= PATTERNS_PER_PAGE) {
+    elements.communityPagination.classList.add("hidden");
+    return;
+  }
+  elements.communityPagination.classList.remove("hidden");
+  elements.paginationInfo.textContent = `Page ${communityCurrentPage} of ${communityTotalPages}`;
+  elements.btnPrevPage.disabled = communityCurrentPage <= 1;
+  elements.btnNextPage.disabled = communityCurrentPage >= communityTotalPages;
+}
+function changePage(delta) {
+  const newPage = communityCurrentPage + delta;
+  if (newPage >= 1 && newPage <= communityTotalPages) {
+    communityCurrentPage = newPage;
+    fetchCommunityPatterns();
+  }
+}
+window.handleVote = async function(patternId, vote) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/patterns/${patternId}/vote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vote })
+    });
+    if (!response.ok) {
+      throw new Error("Failed to vote");
+    }
+    fetchCommunityPatterns();
+  } catch (error) {
+    console.error("Vote error:", error);
+    alert("Failed to submit vote. Please try again.");
+  }
+};
+window.handleUsePattern = async function(patternId) {
+  const pattern = communityPatterns.find((p) => p.id === patternId);
+  if (!pattern) {
+    alert("Pattern not found");
+    return;
+  }
+  if (!config.patterns.custom) {
+    config.patterns.custom = [];
+  }
+  const exists = config.patterns.custom.some((p) => p.name === pattern.name || p.regex === pattern.regex);
+  if (exists) {
+    alert(`Pattern "${pattern.name}" is already in your configuration`);
+    return;
+  }
+  config.patterns.custom.push({
+    name: pattern.name,
+    regex: pattern.regex,
+    strategy: "token",
+    sampleValue: pattern.samples && pattern.samples.length > 0 ? pattern.samples[0] : ""
+  });
+  const customIndex = config.patterns.custom.length - 1;
+  if (pattern.samples && pattern.samples.length > 0) {
+    testInputs[`custom_${customIndex}`] = pattern.samples[0];
+  }
+  updateJsonConfig();
+  renderPatternCards();
+  renderOutputFormatTab();
+  try {
+    await fetch(`${API_BASE_URL}/api/patterns/${patternId}/use`, {
+      method: "POST"
+    });
+  } catch {}
+  setActiveTab("json");
+  alert(`Pattern "${pattern.name}" added to your configuration! The regex has been added to the JSON config.`);
+};

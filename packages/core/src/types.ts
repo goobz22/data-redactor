@@ -20,6 +20,11 @@ export interface FormatOptions {
   preserveStructure?: boolean // For mask strategy, preserve dots/dashes/etc, default true
 }
 
+export interface ScenarioConfig {
+  enabled: boolean
+  strategy: RedactionStrategy
+}
+
 export interface RedactorConfig {
   formatOptions?: FormatOptions
   customEntities?: {
@@ -39,7 +44,17 @@ export interface RedactorConfig {
     hostname?: PatternConfig
     ticketNumber?: PatternConfig
     name?: PatternConfig
+    uuid?: PatternConfig
+    filePath?: PatternConfig
     custom?: CustomPattern[]
+  }
+  scenarios?: {
+    authHeader?: ScenarioConfig
+    password?: ScenarioConfig
+    apiKey?: ScenarioConfig
+    connectionString?: ScenarioConfig
+    privateKey?: ScenarioConfig
+    awsCredentials?: ScenarioConfig
   }
   testData?: string // Optional test data for UI testing
 }

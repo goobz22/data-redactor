@@ -11,116 +11,480 @@
   <div class="container">
     <!-- Header -->
     <header class="header">
-      <h1>Data Redactor</h1>
-      <p class="subtitle">Redact sensitive information before sending to AI systems</p>
-      <p class="privacy-note">All processing happens in your browser. No data is sent to any server.</p>
+      <div class="header-bg-pattern"></div>
+      <div class="header-content">
+        <div class="header-top-bar">
+          <span id="version-badge" class="version-badge">v...</span>
+          <div class="header-badges">
+            <span class="badge badge-secure">
+              <span class="badge-icon">&#x1F512;</span>
+              100% Client-Side
+            </span>
+            <span class="badge badge-privacy">
+              <span class="badge-icon">&#x1F6E1;</span>
+              Zero Data Sent
+            </span>
+          </div>
+        </div>
+
+        <div class="header-main">
+          <div class="logo-section">
+            <div class="logo-icon">
+              <span class="logo-shield">&#x1F6E1;</span>
+              <span class="logo-lock">&#x1F510;</span>
+            </div>
+            <div class="logo-text">
+              <h1>Data<span class="logo-accent">Redactor</span></h1>
+              <div class="tagline">Enterprise-Grade Privacy Protection</div>
+            </div>
+          </div>
+
+          <p class="hero-text">
+            Protect sensitive information before sharing with AI systems.
+            <span class="highlight">PII, credentials, and confidential data</span> - redacted in milliseconds.
+          </p>
+
+          <div class="feature-pills">
+            <span class="pill">
+              <span class="pill-icon">&#x26A1;</span>
+              Instant Processing
+            </span>
+            <span class="pill">
+              <span class="pill-icon">&#x1F9E0;</span>
+              Smart Detection
+            </span>
+            <span class="pill">
+              <span class="pill-icon">&#x1F504;</span>
+              Reversible Tokens
+            </span>
+            <span class="pill">
+              <span class="pill-icon">&#x2699;</span>
+              Custom Patterns
+            </span>
+          </div>
+        </div>
+      </div>
     </header>
 
     <!-- Config Section -->
     <div class="config-section">
       <!-- Tabs -->
-      <div class="tabs">
-        <span id="tab-simple" class="tab active">Simple Config</span>
-        <span id="tab-json" class="tab">JSON Editor</span>
-        <span id="tab-output" class="tab">Output Format</span>
+      <div class="tabs-container">
+        <div class="tabs" id="tabs-nav">
+          <span id="tab-simple" class="tab active">Pattern Detection</span>
+          <span id="tab-json" class="tab">JSON Editor</span>
+          <span id="tab-output" class="tab">Output Format</span>
+          <span id="tab-builder" class="tab">Pattern Builder</span>
+          <span id="tab-community" class="tab">Community</span>
+        </div>
       </div>
 
-      <!-- Simple Config Tab -->
+      <!-- Pattern Detection Tab -->
       <div id="content-simple">
-        <h2 class="section-title">Built-in Pattern Detection</h2>
-        <div id="pattern-cards" class="checkbox-group"></div>
-        <div class="tip">
-          <strong>Tip:</strong> Switch to JSON Editor tab to add custom entities (company names, customer names) and custom patterns (regex-based detection).
+        <details id="builtin-patterns-accordion" class="patterns-accordion">
+          <summary class="patterns-accordion-header">
+            <h2 class="section-title">Built-in Patterns</h2>
+            <div class="patterns-actions">
+              <button id="btn-enable-all" class="btn btn-small btn-secondary">Enable All</button>
+              <button id="btn-disable-all" class="btn btn-small btn-secondary">Disable All</button>
+            </div>
+            <span class="accordion-icon"></span>
+          </summary>
+          <div id="pattern-cards" class="pattern-grid"></div>
+        </details>
+
+        <!-- Custom Patterns Section -->
+        <div id="custom-patterns-section" class="custom-patterns-section hidden">
+          <div class="patterns-header">
+            <h2 class="section-title">Custom Patterns</h2>
+            <span class="custom-hint">From Pattern Builder</span>
+          </div>
+          <div id="custom-pattern-cards" class="pattern-grid"></div>
+        </div>
+
+        <!-- Input/Output Grid -->
+        <div class="grid">
+          <div class="panel">
+            <div class="panel-header">
+              <label class="label">Input Text</label>
+              <button id="btn-insert-test" class="btn btn-secondary btn-small">Insert Test Data</button>
+            </div>
+            <textarea id="input-text" placeholder="Paste your text with sensitive data here..."></textarea>
+          </div>
+
+          <div class="panel">
+            <label class="label">Redacted Output</label>
+            <textarea id="redacted-text" readonly placeholder="Redacted text will appear here..."></textarea>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="button-container">
+          <button id="btn-redact" class="btn">Redact Data</button>
+          <button id="btn-copy" class="btn btn-secondary">Copy Output</button>
+          <button id="btn-clear" class="btn btn-secondary">Clear All</button>
+        </div>
+
+        <!-- Mapping Panel -->
+        <div id="mapping-container" class="panel hidden">
+          <div class="panel-header">
+            <label class="label">Redaction Mapping (Keep this secure!)</label>
+            <button id="btn-copy-mapping" class="btn btn-small">Copy Mapping</button>
+          </div>
+          <div id="mapping-content" class="mapping"></div>
         </div>
       </div>
 
       <!-- JSON Editor Tab -->
       <div id="content-json" class="hidden">
-        <div class="warning">
-          <strong>Security Note:</strong> Custom configurations are stored in browser memory only. No files are saved to disk unless you explicitly export them.
+        <div class="json-editor-header">
+          <div>
+            <h2 class="section-title">Configuration Editor</h2>
+            <p class="json-editor-desc">Edit your redaction configuration directly as JSON</p>
+          </div>
         </div>
 
-        <div style="margin-bottom: 16px;">
-          <button id="btn-import-json" class="btn">Import JSON</button>
-          <button id="btn-export-edited" class="btn btn-secondary">Export Edited JSON</button>
-          <button id="btn-export-default" class="btn btn-secondary">Export Default JSON</button>
-          <button id="btn-reset" class="btn btn-secondary">Reset to Default</button>
+        <div class="json-security-note">
+          <span class="security-icon">🔒</span>
+          <span>Configurations are stored in browser memory only. No data is sent to any server.</span>
         </div>
 
-        <label class="label">Configuration JSON</label>
-        <div id="json-error" class="hidden" style="color: #dc3545; font-size: 14px; margin-bottom: 8px;"></div>
-        <textarea id="json-editor" class="json-editor" placeholder="Edit your configuration as JSON..."></textarea>
+        <div class="json-toolbar">
+          <div class="json-toolbar-group">
+            <button id="btn-import-json" class="json-btn json-btn-primary">
+              <span class="json-btn-icon">&#x1F4C1;</span>
+              Import
+            </button>
+            <button id="btn-save-config" class="json-btn json-btn-success">
+              <span class="json-btn-icon">&#x2714;</span>
+              Save
+            </button>
+            <div class="dropdown">
+              <button id="btn-download-dropdown" class="json-btn">
+                <span class="json-btn-icon">&#x2B07;</span>
+                Download
+                <span class="dropdown-arrow">&#x25BC;</span>
+              </button>
+              <div class="dropdown-menu">
+                <button id="btn-export-edited" class="dropdown-item">Current Configuration</button>
+                <button id="btn-export-default" class="dropdown-item">Default Configuration</button>
+              </div>
+            </div>
+          </div>
+          <div class="json-toolbar-group">
+            <button id="btn-reset" class="json-btn json-btn-danger">
+              <span class="json-btn-icon">&#x21BA;</span>
+              Reset
+            </button>
+          </div>
+        </div>
 
-        <div class="config-guide">
-          <details>
-            <summary>Configuration Guide</summary>
-            <pre>{
-  "customEntities": {
-    "companyNames": ["Acme Corp", "Your Company"],
-    "customerNames": ["John Doe", "Jane Smith"],
-    "projectNames": ["Project Alpha"]
-  },
-  "patterns": {
-    "ipAddress": {
-      "enabled": true,
-      "strategy": "token" | "mask" | "formatPreserving"
-    },
-    "custom": [
-      {
-        "name": "caseId",
-        "regex": "CASE-\\d{6}",
-        "strategy": "token"
-      }
-    ]
-  }
+        <div class="json-editor-container">
+          <label class="label">Configuration JSON</label>
+          <div id="json-error" class="json-error hidden"></div>
+          <textarea id="json-editor" class="json-editor" placeholder="Edit your configuration as JSON..."></textarea>
+        </div>
+
+        <details class="json-guide">
+          <summary class="json-guide-summary">
+            <span class="guide-icon">&#x1F4D6;</span>
+            Configuration Guide
+          </summary>
+          <div class="json-guide-content">
+            <div class="guide-section">
+              <h4 class="guide-section-title">1. Enable/Disable Built-in Patterns</h4>
+              <p class="guide-text">Toggle detection for specific data types:</p>
+              <pre class="json-example">"patterns": {
+  "email": { "enabled": true, "strategy": "token" },
+  "phone": { "enabled": false }
 }</pre>
-          </details>
-        </div>
+            </div>
+
+            <div class="guide-section">
+              <h4 class="guide-section-title">2. Choose Redaction Strategy</h4>
+              <div class="strategy-cards">
+                <div class="strategy-card">
+                  <span class="strategy-name">token</span>
+                  <span class="strategy-arrow">&#x2192;</span>
+                  <code>john@email.com</code> becomes <code>[EMAIL_1]</code>
+                </div>
+                <div class="strategy-card">
+                  <span class="strategy-name">mask</span>
+                  <span class="strategy-arrow">&#x2192;</span>
+                  <code>john@email.com</code> becomes <code>**************</code>
+                </div>
+                <div class="strategy-card">
+                  <span class="strategy-name">formatPreserving</span>
+                  <span class="strategy-arrow">&#x2192;</span>
+                  <code>john@email.com</code> becomes <code>xxxx@xxxxx.xxx</code>
+                </div>
+              </div>
+            </div>
+
+            <div class="guide-section">
+              <h4 class="guide-section-title">3. Add Custom Patterns</h4>
+              <p class="guide-text">Create patterns for your specific data formats:</p>
+              <pre class="json-example">"patterns": {
+  "custom": [
+    {
+      "name": "ticketId",
+      "regex": "TICKET-\\d{5}",
+      "strategy": "token",
+      "sampleValue": "TICKET-12345"
+    }
+  ]
+}</pre>
+              <div class="guide-fields">
+                <div class="guide-field"><code>name</code> What to call this pattern</div>
+                <div class="guide-field"><code>regex</code> Pattern to match (use \\\\ for backslashes)</div>
+                <div class="guide-field"><code>strategy</code> How to redact: token, mask, or formatPreserving</div>
+                <div class="guide-field"><code>sampleValue</code> Example for testing (optional)</div>
+              </div>
+            </div>
+
+            <div class="guide-section">
+              <h4 class="guide-section-title">4. Custom Entity Lists</h4>
+              <p class="guide-text">Add specific names or terms to always redact:</p>
+              <pre class="json-example">"customEntities": {
+  "companyNames": ["Acme Corp", "My Company Inc"],
+  "customerNames": ["John Doe", "Jane Smith"]
+}</pre>
+            </div>
+          </div>
+        </details>
       </div>
 
       <!-- Output Format Tab -->
       <div id="content-output" class="hidden">
-        <h2 class="section-title" style="color: #BF0A30;">Interactive Pattern Testing & Format Customization</h2>
+        <div class="output-tab-header">
+          <div>
+            <h2 class="section-title">Pattern Testing</h2>
+            <p class="output-tab-desc">Test patterns and preview redaction strategies in real-time</p>
+          </div>
+          <div class="output-view-toggle">
+            <button id="btn-view-compact" class="view-btn active">Compact</button>
+            <button id="btn-view-expanded" class="view-btn">Expanded</button>
+          </div>
+        </div>
+
+        <!-- Built-in Patterns -->
+        <div class="output-section">
+          <h3 class="output-section-title">Built-in Patterns</h3>
+          <div id="output-patterns" class="output-patterns-grid"></div>
+        </div>
+
+        <!-- Custom Patterns -->
+        <div id="output-custom-section" class="output-section hidden">
+          <h3 class="output-section-title">Custom Patterns <span class="custom-badge">From Config</span></h3>
+          <div id="output-custom-patterns" class="output-patterns-grid"></div>
+        </div>
+
+        <div class="info-box compact">
+          <strong>Tip:</strong> Results update as you type. Each strategy produces deterministic outputs.
+        </div>
+      </div>
+
+      <!-- Pattern Builder Tab -->
+      <div id="content-builder" class="hidden">
+        <h2 class="section-title" style="color: #BF0A30;">Custom Pattern Builder</h2>
         <p style="font-size: 15px; color: #002868; margin-bottom: 20px; font-weight: 600;">
-          Test each pattern with custom input and configure the output format for each strategy.
+          Generate regex patterns from sample data. Mark the specific text you want to match across multiple samples.
         </p>
-        <div id="output-patterns"></div>
-        <div class="info-box">
-          <strong>Interactive Testing:</strong> The outputs shown above are generated in real-time using the core redaction engine. Modify the test input to see how different values are redacted. Each strategy runs independently and produces deterministic results.
+
+        <!-- Existing Patterns Section -->
+        <div id="existing-patterns-section" class="existing-patterns-section hidden">
+          <div class="existing-patterns-header">
+            <h3 class="subsection-title" style="margin: 0;">Your Custom Patterns</h3>
+            <span class="existing-patterns-hint">Click to edit and refine</span>
+          </div>
+          <div id="existing-patterns-list" class="existing-patterns-list"></div>
+        </div>
+
+        <div class="builder-section">
+          <!-- Editing indicator -->
+          <div id="editing-indicator" class="editing-indicator">
+            <span class="editing-indicator-text">Editing: <strong id="editing-pattern-name"></strong></span>
+            <button id="btn-cancel-edit" class="btn-cancel-edit">Cancel Edit</button>
+          </div>
+
+          <label class="label">Sample Data</label>
+          <p class="field-hint">1. Paste your sample below &nbsp; 2. Select the text you want to match &nbsp; 3. Click <strong>Mark Selection</strong></p>
+
+          <div class="builder-toolbar">
+            <button id="btn-mark-selection" class="btn btn-mark" title="Mark selected text for pattern generation">
+              <span class="btn-icon">&#x1F3AF;</span>
+              <span class="btn-text">Mark Selection</span>
+            </button>
+            <button id="btn-clear-marks" class="btn btn-clear" title="Clear all marked text">
+              <span class="btn-icon">&#x2715;</span>
+              <span class="btn-text">Clear</span>
+            </button>
+            <button id="btn-add-sample" class="btn btn-add-sample" title="Add another sample input">
+              <span class="btn-icon">&#x2795;</span>
+              <span class="btn-text">Add Sample</span>
+            </button>
+          </div>
+
+          <div id="samples-container">
+            <div class="sample-wrapper" data-sample-index="0">
+              <div class="sample-header">
+                <span class="sample-label">Sample 1</span>
+              </div>
+              <div class="builder-input-editable sample-input" contenteditable="true" placeholder="Paste your sample data here..."></div>
+            </div>
+          </div>
+
+          <div id="marked-texts-list" class="marked-texts-container hidden">
+            <label class="label">Marked Values for Pattern Generation:</label>
+            <div id="marked-texts-chips"></div>
+          </div>
+
+          <div class="builder-options">
+            <label class="checkbox-label">
+              <input type="checkbox" id="builder-word-boundaries" checked>
+              Add word boundaries
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="builder-case-insensitive">
+              Case insensitive
+            </label>
+          </div>
+
+          <button id="btn-generate-pattern" class="btn btn-generate">
+            <span class="btn-icon">&#x2728;</span>
+            <span class="btn-text">Generate Pattern</span>
+          </button>
+        </div>
+
+        <div id="builder-result" class="hidden">
+          <h3 class="subsection-title">Generated Pattern</h3>
+
+          <div class="result-card">
+            <label class="label">Pattern Name</label>
+            <input type="text" id="builder-pattern-name" class="text-input" placeholder="customPattern">
+
+            <label class="label">Regex Pattern</label>
+            <div class="regex-display">
+              <code id="builder-regex"></code>
+              <button id="btn-copy-regex" class="btn btn-copy-regex" title="Copy regex to clipboard">
+                <span class="btn-icon">&#x1F4CB;</span>
+                <span class="btn-text">Copy</span>
+              </button>
+            </div>
+
+            <div id="builder-validation" class="validation-status"></div>
+
+            <div id="builder-warnings" class="warnings-list"></div>
+
+            <h4 class="label">What This Pattern Does</h4>
+            <div id="builder-explanation" class="pattern-explanation"></div>
+
+            <h4 class="label">Pattern Structure</h4>
+            <div id="builder-segments" class="segments-list"></div>
+
+            <h4 class="label">Test Pattern</h4>
+            <div class="test-section">
+              <input type="text" id="builder-test-input" class="text-input" placeholder="Enter text to test pattern">
+              <div id="builder-test-result" class="test-result"></div>
+            </div>
+
+            <div class="builder-actions">
+              <button id="btn-add-pattern" class="btn btn-add-config">
+                <span class="btn-icon">&#x2714;</span>
+                <span class="btn-text">Add to Configuration</span>
+              </button>
+            </div>
+
+            <!-- Pattern Submission for Community Feedback -->
+            <div class="submit-pattern-section">
+              <h4 class="label">Share This Pattern</h4>
+              <p class="field-hint">Help improve Data Redactor by submitting useful patterns to the community library.</p>
+
+              <label class="label">Pattern Description</label>
+              <input type="text" id="pattern-description" class="text-input" placeholder="e.g., Internal ticket ID format used in ServiceNow">
+
+              <label class="label">Category</label>
+              <select id="pattern-category" class="pattern-select">
+                <option value="">Select a category...</option>
+                <option value="identifier">Identifiers (IDs, codes, keys)</option>
+                <option value="financial">Financial (account numbers, routing)</option>
+                <option value="healthcare">Healthcare (MRN, NPI)</option>
+                <option value="infrastructure">Infrastructure (hostnames, IPs)</option>
+                <option value="personal">Personal Info (names, addresses)</option>
+                <option value="custom">Custom/Other</option>
+              </select>
+
+              <button id="btn-submit-pattern" class="btn btn-submit-pattern">
+                <span class="btn-icon">&#x1F4E4;</span>
+                <span class="btn-text">Submit Pattern for Review</span>
+              </button>
+              <div id="submit-status" class="submit-status hidden"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-box" style="margin-top: 20px;">
+          <strong>How it works:</strong> The pattern builder analyzes your sample data to detect structure patterns like digits, letters, special characters, and common formats (UUID, IPv4, MAC addresses). It generates an optimized regex that matches similar data.
         </div>
       </div>
-    </div>
 
-    <!-- Input/Output Grid -->
-    <div class="grid">
-      <div class="panel">
-        <div class="panel-header">
-          <label class="label">Input Text</label>
-          <button id="btn-insert-test" class="btn btn-secondary btn-small">Insert Test Data</button>
+      <!-- Community Patterns Tab -->
+      <div id="content-community" class="hidden">
+        <div class="community-header">
+          <div>
+            <h2 class="section-title" style="color: #002868;">Community Patterns</h2>
+            <p class="community-desc">Browse and use patterns submitted by the community. Vote on patterns to help others find the best ones.</p>
+          </div>
+          <div class="community-actions">
+            <button id="btn-refresh-patterns" class="btn btn-secondary btn-small">Refresh</button>
+          </div>
         </div>
-        <textarea id="input-text" placeholder="Paste your text with sensitive data here..."></textarea>
-      </div>
 
-      <div class="panel">
-        <label class="label">Redacted Output</label>
-        <textarea id="redacted-text" readonly placeholder="Redacted text will appear here..."></textarea>
-      </div>
-    </div>
 
-    <!-- Action Buttons -->
-    <div class="button-container">
-      <button id="btn-redact" class="btn">Redact Data</button>
-      <button id="btn-copy" class="btn btn-secondary">Copy Output</button>
-      <button id="btn-clear" class="btn btn-secondary">Clear All</button>
-    </div>
+        <!-- Category Filter -->
+        <div class="community-filters">
+          <label class="filter-label">Filter by Category:</label>
+          <select id="community-category-filter" class="filter-select">
+            <option value="">All Categories</option>
+            <option value="identifier">Identifiers</option>
+            <option value="financial">Financial</option>
+            <option value="healthcare">Healthcare</option>
+            <option value="infrastructure">Infrastructure</option>
+            <option value="personal">Personal Info</option>
+            <option value="custom">Custom</option>
+          </select>
+          <label class="filter-label" style="margin-left: 16px;">Status:</label>
+          <select id="community-status-filter" class="filter-select">
+            <option value="">All</option>
+            <option value="pending">Pending Review</option>
+            <option value="approved">Approved</option>
+          </select>
+        </div>
 
-    <!-- Mapping Panel -->
-    <div id="mapping-container" class="panel hidden">
-      <div class="panel-header">
-        <label class="label">Redaction Mapping (Keep this secure!)</label>
-        <button id="btn-copy-mapping" class="btn btn-small">Copy Mapping</button>
+        <!-- Patterns List -->
+        <div id="community-patterns-list" class="community-patterns-list">
+          <div class="loading-message">Loading patterns...</div>
+        </div>
+
+        <!-- Pagination -->
+        <div id="community-pagination" class="community-pagination hidden">
+          <button id="btn-prev-page" class="btn btn-small btn-secondary" disabled>Previous</button>
+          <span id="pagination-info" class="pagination-info">Page 1 of 1</span>
+          <button id="btn-next-page" class="btn btn-small btn-secondary" disabled>Next</button>
+        </div>
+
+        <!-- Empty State -->
+        <div id="community-empty" class="community-empty hidden">
+          <p>No patterns found. Be the first to submit one!</p>
+          <button id="btn-go-builder" class="btn">Go to Pattern Builder</button>
+        </div>
+
+        <!-- Database Info -->
+        <div class="info-box" style="margin-top: 20px;">
+          <strong>Local Database:</strong> Community patterns are stored in a local SQLite database (no setup required).
+          The database is automatically created when you start the API server with <code>bun dev</code>.
+        </div>
       </div>
-      <div id="mapping-content" class="mapping"></div>
     </div>
   </div>
 

@@ -71,7 +71,27 @@ export const DEFAULT_CONFIG: RedactorConfig = {
       // No default regex - built dynamically from name databases (8849 names)
       // Custom regex can be provided if needed
     },
+    uuid: {
+      enabled: true,
+      strategy: 'token',
+      regex:
+        '\\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\b',
+    },
+    filePath: {
+      enabled: true,
+      strategy: 'token',
+      regex:
+        '(?:[A-Za-z]:\\\\(?:[^\\\\\\/:*?"<>|\\r\\n]+\\\\)*[^\\\\\\/:*?"<>|\\r\\n]*)|(?:\\/(?:[^\\s\\/\\0]+\\/)+[^\\s\\/\\0]*|\\/[^\\s\\/\\0]+)',
+    },
     custom: [],
+  },
+  scenarios: {
+    authHeader: { enabled: true, strategy: 'token' },
+    password: { enabled: true, strategy: 'token' },
+    apiKey: { enabled: true, strategy: 'token' },
+    connectionString: { enabled: true, strategy: 'token' },
+    privateKey: { enabled: true, strategy: 'token' },
+    awsCredentials: { enabled: true, strategy: 'token' },
   },
   customEntities: {},
   testData: `Support Ticket #12345
@@ -91,6 +111,20 @@ Network Details:
 - Gateway: 10.0.0.1
 - DNS Server: 8.8.8.8
 - Hostname: mail.example.com
+
+System Details:
+- Request ID: 550e8400-e29b-41d4-a716-446655440000
+- Session UUID: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+- Config File: C:\\Users\\admin\\AppData\\config.json
+- Log Path: /var/log/application/error.log
+- Script: /home/user/scripts/deploy.sh
+
+Credentials (Context-Aware):
+- Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
+- password = super_secret_123
+- api_key: sk-1234567890abcdef
+- DATABASE_URL: postgres://user:p@ssw0rd@localhost:5432/mydb
+- AWS_SECRET_ACCESS_KEY = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 
 Payment Information:
 - Primary Card: 4532-1234-5678-9010
