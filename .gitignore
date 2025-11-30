@@ -16,6 +16,11 @@ coverage/
 .env.*
 !.env.example
 
+# SQLite (legacy - now using MongoDB)
+*.db
+*.db-shm
+*.db-wal
+
 # Logs
 *.log
 npm-debug.log*

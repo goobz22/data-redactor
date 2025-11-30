@@ -1,18 +1,17 @@
 /**
- * SQLite Database Client using Bun's built-in SQLite
+ * MongoDB Database Client
  *
- * No external database required - works out of the box
+ * Uses MongoDB Atlas for both local development and Vercel deployment
+ * Connection string is read from MONGODB_URI environment variable
  */
 
-import { Database } from 'bun:sqlite'
-
-// Database file path - stored in the api/db folder
-const DB_PATH = import.meta.dir + '/data.db'
+import { MongoClient, ObjectId, type Db } from 'mongodb'
 
 // =============================================================================
 // TYPES
 // =============================================================================
 export interface FeedbackEntry {
+  _id?: ObjectId
   id?: string
   createdAt?: Date
   original: string
@@ -30,6 +29,7 @@ export interface FeedbackResult {
 }
 
 export interface CommunityPattern {
+  _id?: ObjectId
   id?: string
   created_at?: string
   updated_at?: string
@@ -52,76 +52,68 @@ export interface PatternResult {
 }
 
 // =============================================================================
-// DATABASE INITIALIZATION
+// DATABASE CONNECTION
 // =============================================================================
 
-let db: Database | null = null
+const MONGODB_URI = Bun.env.MONGODB_URI
 
-function getDb(): Database {
-  if (!db) {
-    db = new Database(DB_PATH)
-    db.exec('PRAGMA journal_mode = WAL')
-    initializeTables()
-    console.log(`[DB] SQLite database initialized at ${DB_PATH}`)
-  }
-  return db
+if (!MONGODB_URI) {
+  console.warn(
+    '[DB] MONGODB_URI environment variable not set. Database features will not work.'
+  )
 }
 
-function initializeTables() {
-  const database = db!
+let client: MongoClient | null = null
+let db: Db | null = null
 
-  // Create feedback table
-  database.exec(`
-    CREATE TABLE IF NOT EXISTS feedback (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      created_at TEXT DEFAULT (datetime('now')),
-      original TEXT NOT NULL,
-      missed TEXT NOT NULL,
-      suggested_type TEXT,
-      regex TEXT,
-      sample_data TEXT,
-      pattern_name TEXT,
-      category TEXT
-    )
-  `)
-
-  // Create community_patterns table
-  database.exec(`
-    CREATE TABLE IF NOT EXISTS community_patterns (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now')),
-      name TEXT NOT NULL,
-      regex TEXT NOT NULL,
-      description TEXT,
-      category TEXT NOT NULL DEFAULT 'custom',
-      samples TEXT DEFAULT '[]',
-      segments TEXT DEFAULT '[]',
-      status TEXT DEFAULT 'pending',
-      usage_count INTEGER DEFAULT 0,
-      upvotes INTEGER DEFAULT 0,
-      downvotes INTEGER DEFAULT 0,
-      approved_version TEXT
-    )
-  `)
-
-  // Add approved_version column if it doesn't exist (migration for existing DBs)
-  try {
-    database.exec(
-      `ALTER TABLE community_patterns ADD COLUMN approved_version TEXT`
-    )
-  } catch {
-    // Column already exists, ignore
+async function getDb(): Promise<Db> {
+  if (!MONGODB_URI) {
+    throw new Error('MONGODB_URI environment variable is not set')
   }
 
-  // Create indexes
-  database.exec(`
-    CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON feedback(created_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_feedback_category ON feedback(category);
-    CREATE INDEX IF NOT EXISTS idx_patterns_created_at ON community_patterns(created_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_patterns_category ON community_patterns(category);
-    CREATE INDEX IF NOT EXISTS idx_patterns_status ON community_patterns(status);
-  `)
+  if (!client) {
+    client = new MongoClient(MONGODB_URI)
+    await client.connect()
+    db = client.db() // Uses database from connection string (DataRedactor)
+    console.log('[DB] MongoDB connected successfully')
+
+    // Create indexes for better query performance
+    await createIndexes()
+  }
+
+  return db!
+}
+
+async function createIndexes(): Promise<void> {
+  if (!db) return
+
+  try {
+    // Feedback collection indexes
+    const feedbackCollection = db.collection('feedback')
+    await feedbackCollection.createIndex({ createdAt: -1 })
+    await feedbackCollection.createIndex({ category: 1 })
+
+    // Patterns collection indexes
+    const patternsCollection = db.collection('community_patterns')
+    await patternsCollection.createIndex({ created_at: -1 })
+    await patternsCollection.createIndex({ category: 1 })
+    await patternsCollection.createIndex({ status: 1 })
+    await patternsCollection.createIndex({ upvotes: -1, created_at: -1 })
+
+    console.log('[DB] Indexes created successfully')
+  } catch (error) {
+    console.error('[DB] Error creating indexes:', error)
+  }
+}
+
+// Helper to convert MongoDB _id to string id
+function normalizeId<T extends { _id?: ObjectId }>(
+  doc: T
+): Omit<T, '_id'> & { id: string } {
+  const { _id, ...rest } = doc
+  return { ...rest, id: _id?.toString() || '' } as Omit<T, '_id'> & {
+    id: string
+  }
 }
 
 // =============================================================================
@@ -131,67 +123,78 @@ function initializeTables() {
 export async function saveFeedback(
   entry: FeedbackEntry
 ): Promise<FeedbackResult> {
-  const database = getDb()
-  const id = crypto.randomUUID()
-  const now = new Date().toISOString()
+  const database = await getDb()
+  const collection = database.collection('feedback')
+  const now = new Date()
 
-  database.run(
-    `INSERT INTO feedback (id, created_at, original, missed, suggested_type, regex, sample_data, pattern_name, category)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      id,
-      now,
-      entry.original,
-      entry.missed,
-      entry.suggestedType || null,
-      entry.regex || null,
-      entry.sampleData || null,
-      entry.patternName || null,
-      entry.category || null,
-    ]
-  )
+  const doc = {
+    createdAt: now,
+    original: entry.original,
+    missed: entry.missed,
+    suggestedType: entry.suggestedType || null,
+    regex: entry.regex || null,
+    sampleData: entry.sampleData || null,
+    patternName: entry.patternName || null,
+    category: entry.category || null,
+  }
 
-  return { id, created_at: now }
+  const result = await collection.insertOne(doc)
+
+  return {
+    id: result.insertedId.toString(),
+    created_at: now.toISOString(),
+  }
 }
 
 export async function getAllFeedback(
   limit: number = 100,
   offset: number = 0
 ): Promise<FeedbackEntry[]> {
-  const database = getDb()
-  const stmt = database.prepare(
-    `SELECT id, created_at as createdAt, original, missed, suggested_type as suggestedType,
-            regex, sample_data as sampleData, pattern_name as patternName, category
-     FROM feedback ORDER BY created_at DESC LIMIT ? OFFSET ?`
-  )
-  return stmt.all(limit, offset) as FeedbackEntry[]
+  const database = await getDb()
+  const collection = database.collection('feedback')
+
+  const docs = await collection
+    .find({})
+    .sort({ createdAt: -1 })
+    .skip(offset)
+    .limit(limit)
+    .toArray()
+
+  return docs.map(doc => normalizeId(doc as FeedbackEntry & { _id: ObjectId }))
 }
 
 export async function getFeedbackCount(): Promise<number> {
-  const database = getDb()
-  const result = database
-    .query('SELECT COUNT(*) as count FROM feedback')
-    .get() as { count: number }
-  return result?.count || 0
+  const database = await getDb()
+  const collection = database.collection('feedback')
+  return await collection.countDocuments()
 }
 
 export async function getFeedbackByCategory(
   category: string,
   limit: number = 100
 ): Promise<FeedbackEntry[]> {
-  const database = getDb()
-  const stmt = database.prepare(
-    `SELECT id, created_at as createdAt, original, missed, suggested_type as suggestedType,
-            regex, sample_data as sampleData, pattern_name as patternName, category
-     FROM feedback WHERE category = ? ORDER BY created_at DESC LIMIT ?`
-  )
-  return stmt.all(category, limit) as FeedbackEntry[]
+  const database = await getDb()
+  const collection = database.collection('feedback')
+
+  const docs = await collection
+    .find({ category })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .toArray()
+
+  return docs.map(doc => normalizeId(doc as FeedbackEntry & { _id: ObjectId }))
 }
 
 export async function deleteFeedback(id: string): Promise<boolean> {
-  const database = getDb()
-  const result = database.run('DELETE FROM feedback WHERE id = ?', [id])
-  return result.changes > 0
+  const database = await getDb()
+  const collection = database.collection('feedback')
+
+  try {
+    const result = await collection.deleteOne({ _id: new ObjectId(id) })
+    return result.deletedCount > 0
+  } catch {
+    return false
+  }
 }
 
 // =============================================================================
@@ -201,28 +204,32 @@ export async function deleteFeedback(id: string): Promise<boolean> {
 export async function savePattern(
   pattern: CommunityPattern
 ): Promise<PatternResult> {
-  const database = getDb()
-  const id = crypto.randomUUID()
+  const database = await getDb()
+  const collection = database.collection('community_patterns')
   const now = new Date().toISOString()
 
-  database.run(
-    `INSERT INTO community_patterns (id, created_at, updated_at, name, regex, description, category, samples, segments, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      id,
-      now,
-      now,
-      pattern.name,
-      pattern.regex,
-      pattern.description || null,
-      pattern.category || 'custom',
-      JSON.stringify(pattern.samples || []),
-      JSON.stringify(pattern.segments || []),
-      pattern.status || 'pending',
-    ]
-  )
+  const doc = {
+    created_at: now,
+    updated_at: now,
+    name: pattern.name,
+    regex: pattern.regex,
+    description: pattern.description || null,
+    category: pattern.category || 'custom',
+    samples: pattern.samples || [],
+    segments: pattern.segments || [],
+    status: pattern.status || 'pending',
+    usage_count: 0,
+    upvotes: 0,
+    downvotes: 0,
+    approved_version: null,
+  }
 
-  return { id, created_at: now }
+  const result = await collection.insertOne(doc)
+
+  return {
+    id: result.insertedId.toString(),
+    created_at: now,
+  }
 }
 
 export async function getAllPatterns(
@@ -230,99 +237,61 @@ export async function getAllPatterns(
   offset: number = 0,
   status?: string
 ): Promise<CommunityPattern[]> {
-  const database = getDb()
+  const database = await getDb()
+  const collection = database.collection('community_patterns')
 
-  let query = `SELECT id, created_at, updated_at, name, regex, description, category,
-                      samples, segments, status, usage_count, upvotes, downvotes, approved_version
-               FROM community_patterns`
+  const filter = status ? { status } : {}
 
-  const params: (string | number)[] = []
+  const docs = await collection
+    .find(filter)
+    .sort({ created_at: -1 })
+    .skip(offset)
+    .limit(limit)
+    .toArray()
 
-  if (status) {
-    query += ' WHERE status = ?'
-    params.push(status)
-  }
-
-  query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'
-  params.push(limit, offset)
-
-  const stmt = database.prepare(query)
-  const rows = stmt.all(...params) as CommunityPattern[]
-
-  // Parse JSON fields
-  return rows.map(row => ({
-    ...row,
-    samples:
-      typeof row.samples === 'string' ? JSON.parse(row.samples) : row.samples,
-    segments:
-      typeof row.segments === 'string'
-        ? JSON.parse(row.segments)
-        : row.segments,
-  }))
+  return docs.map(doc =>
+    normalizeId(doc as CommunityPattern & { _id: ObjectId })
+  )
 }
 
 export async function getPatternsByCategory(
   category: string,
   limit: number = 100
 ): Promise<CommunityPattern[]> {
-  const database = getDb()
-  const stmt = database.prepare(
-    `SELECT id, created_at, updated_at, name, regex, description, category,
-            samples, segments, status, usage_count, upvotes, downvotes
-     FROM community_patterns WHERE category = ? ORDER BY upvotes DESC, created_at DESC LIMIT ?`
-  )
-  const rows = stmt.all(category, limit) as CommunityPattern[]
+  const database = await getDb()
+  const collection = database.collection('community_patterns')
 
-  return rows.map(row => ({
-    ...row,
-    samples:
-      typeof row.samples === 'string' ? JSON.parse(row.samples) : row.samples,
-    segments:
-      typeof row.segments === 'string'
-        ? JSON.parse(row.segments)
-        : row.segments,
-  }))
+  const docs = await collection
+    .find({ category })
+    .sort({ upvotes: -1, created_at: -1 })
+    .limit(limit)
+    .toArray()
+
+  return docs.map(doc =>
+    normalizeId(doc as CommunityPattern & { _id: ObjectId })
+  )
 }
 
 export async function getPatternCount(status?: string): Promise<number> {
-  const database = getDb()
+  const database = await getDb()
+  const collection = database.collection('community_patterns')
 
-  if (status) {
-    const result = database
-      .query(
-        'SELECT COUNT(*) as count FROM community_patterns WHERE status = ?'
-      )
-      .get(status) as { count: number }
-    return result?.count || 0
-  }
-
-  const result = database
-    .query('SELECT COUNT(*) as count FROM community_patterns')
-    .get() as { count: number }
-  return result?.count || 0
+  const filter = status ? { status } : {}
+  return await collection.countDocuments(filter)
 }
 
 export async function getPatternById(
   id: string
 ): Promise<CommunityPattern | null> {
-  const database = getDb()
-  const stmt = database.prepare(
-    `SELECT id, created_at, updated_at, name, regex, description, category,
-            samples, segments, status, usage_count, upvotes, downvotes
-     FROM community_patterns WHERE id = ?`
-  )
-  const row = stmt.get(id) as CommunityPattern | null
+  const database = await getDb()
+  const collection = database.collection('community_patterns')
 
-  if (!row) return null
-
-  return {
-    ...row,
-    samples:
-      typeof row.samples === 'string' ? JSON.parse(row.samples) : row.samples,
-    segments:
-      typeof row.segments === 'string'
-        ? JSON.parse(row.segments)
-        : row.segments,
+  try {
+    const doc = await collection.findOne({ _id: new ObjectId(id) })
+    if (!doc) return null
+    return normalizeId(doc as CommunityPattern & { _id: ObjectId })
+  } catch {
+    return null
   }
 }
 
@@ -330,49 +299,87 @@ export async function updatePatternStatus(
   id: string,
   status: 'pending' | 'approved' | 'rejected'
 ): Promise<boolean> {
-  const database = getDb()
-  const now = new Date().toISOString()
-  const result = database.run(
-    'UPDATE community_patterns SET status = ?, updated_at = ? WHERE id = ?',
-    [status, now, id]
-  )
-  return result.changes > 0
+  const database = await getDb()
+  const collection = database.collection('community_patterns')
+
+  try {
+    const result = await collection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          status,
+          updated_at: new Date().toISOString(),
+        },
+      }
+    )
+    return result.modifiedCount > 0
+  } catch {
+    return false
+  }
 }
 
 export async function upvotePattern(id: string): Promise<boolean> {
-  const database = getDb()
-  const now = new Date().toISOString()
-  const result = database.run(
-    'UPDATE community_patterns SET upvotes = upvotes + 1, updated_at = ? WHERE id = ?',
-    [now, id]
-  )
-  return result.changes > 0
+  const database = await getDb()
+  const collection = database.collection('community_patterns')
+
+  try {
+    const result = await collection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $inc: { upvotes: 1 },
+        $set: { updated_at: new Date().toISOString() },
+      }
+    )
+    return result.modifiedCount > 0
+  } catch {
+    return false
+  }
 }
 
 export async function downvotePattern(id: string): Promise<boolean> {
-  const database = getDb()
-  const now = new Date().toISOString()
-  const result = database.run(
-    'UPDATE community_patterns SET downvotes = downvotes + 1, updated_at = ? WHERE id = ?',
-    [now, id]
-  )
-  return result.changes > 0
+  const database = await getDb()
+  const collection = database.collection('community_patterns')
+
+  try {
+    const result = await collection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $inc: { downvotes: 1 },
+        $set: { updated_at: new Date().toISOString() },
+      }
+    )
+    return result.modifiedCount > 0
+  } catch {
+    return false
+  }
 }
 
 export async function incrementPatternUsage(id: string): Promise<boolean> {
-  const database = getDb()
-  const now = new Date().toISOString()
-  const result = database.run(
-    'UPDATE community_patterns SET usage_count = usage_count + 1, updated_at = ? WHERE id = ?',
-    [now, id]
-  )
-  return result.changes > 0
+  const database = await getDb()
+  const collection = database.collection('community_patterns')
+
+  try {
+    const result = await collection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $inc: { usage_count: 1 },
+        $set: { updated_at: new Date().toISOString() },
+      }
+    )
+    return result.modifiedCount > 0
+  } catch {
+    return false
+  }
 }
 
 export async function deletePattern(id: string): Promise<boolean> {
-  const database = getDb()
-  const result = database.run('DELETE FROM community_patterns WHERE id = ?', [
-    id,
-  ])
-  return result.changes > 0
+  const database = await getDb()
+  const collection = database.collection('community_patterns')
+
+  try {
+    const result = await collection.deleteOne({ _id: new ObjectId(id) })
+    return result.deletedCount > 0
+  } catch {
+    return false
+  }
 }

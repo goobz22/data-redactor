@@ -131,7 +131,7 @@ Bun-powered REST API for community patterns and feedback:
 | `/api/patterns/:id/use` | POST | Mark pattern as used |
 | `/api/feedback` | GET/POST | Feedback collection |
 
-**Database:** SQLite (via Bun's built-in SQLite) - no external database required.
+**Database:** MongoDB Atlas - works both locally and on Vercel. Set `MONGODB_URI` environment variable.
 
 ## Installation
 
@@ -354,7 +354,7 @@ data-redactor/
 | **UI** | Vanilla JavaScript | ES2022 |
 | **Build** | tsup (core), Bun.build (UI) | ^8 |
 | **Language** | TypeScript (core) | ^5 |
-| **Database** | Bun SQLite (built-in) | - |
+| **Database** | MongoDB Atlas | ^7 |
 | **Name Data** | common-last-names | ^1 |
 | | datasets-male-first-names-en | ^1 |
 | | datasets-female-first-names-en | ^1 |

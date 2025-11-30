@@ -1,6 +1,6 @@
 {
   "name": "data-redactor-core",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Client-side data redaction tool for securing sensitive information before sending to AI systems",
   "main": "packages/core/dist/index.js",
   "module": "packages/core/dist/index.mjs",
@@ -46,10 +46,11 @@
   "dependencies": {
     "common-last-names": "^1",
     "datasets-female-first-names-en": "^1",
-    "datasets-male-first-names-en": "^1"
+    "datasets-male-first-names-en": "^1",
+    "mongodb": "^7"
   },
   "devDependencies": {
-    "@types/bun": "^1",
+    "@types/bun": "^1.3.3",
     "eslint": "^9",
     "prettier": "^3",
     "tsup": "^8",
