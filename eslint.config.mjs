@@ -28,6 +28,10 @@ const eslintConfig = [
         setTimeout: 'readonly',
         confirm: 'readonly',
         fetch: 'readonly',
+        URLSearchParams: 'readonly',
+        TextDecoder: 'readonly',
+        DecompressionStream: 'readonly',
+        DOMParser: 'readonly',
       },
     },
     rules: {

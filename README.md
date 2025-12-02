@@ -48,6 +48,24 @@ Visual tool to create custom regex patterns from sample data:
 - **Live Testing** - Test generated patterns against sample data in real-time
 - **One-Click Add** - Add patterns directly to your configuration
 
+### Pattern Testing & Validation (New in v1.0.9)
+
+Comprehensive testing system to ensure pattern accuracy and quality:
+
+- **Test Samples** - 60 curated test samples (5 per pattern × 12 patterns)
+- **Quality Scoring** - 0-100 quality scores based on test coverage, accuracy, and edge case handling
+- **Automated Testing** - Run patterns against test samples to identify false positives and false negatives
+- **Pattern Fixing** - Load failed tests into Pattern Builder to fix issues
+- **Edge Case Reporting** - Report pattern issues directly from Pattern Detection tab
+- **Pre-load System** - Pre-fill Pattern Builder with problematic samples for easy fixing
+- **Before/After Comparison** - See quality score improvements when saving improved patterns
+- **Test Metadata View** - View all test samples and quality scores from JSON Editor
+
+**Quality Score Breakdown:**
+- 🟢 **80-100**: High quality - Pattern works reliably across all test cases
+- 🟡 **60-79**: Medium quality - Some issues detected, review recommended
+- 🔴 **0-59**: Low quality - Significant issues, pattern needs improvement
+
 ### Community Patterns (New in v1.0.5)
 
 Browse, share, and vote on community-contributed regex patterns:
@@ -96,39 +114,62 @@ The core TypeScript redaction engine. Zero browser dependencies - works in Node.
 - `DEFAULT_CONFIG` - Default configuration with all patterns enabled
 - `getPreset()` / `hasPreset()` - Preset configuration helpers
 - `generateFromSample()` / `refineFromSamples()` - Regex builder utilities
+- **Testing & Validation (v1.0.9):**
+  - `PatternTestEngine` - Execute patterns against test samples
+  - `calculateQualityScore()` - Calculate 0-100 quality scores
+  - `getTestSample()` / `getTestSamplesForPattern()` - Access 60 curated test samples
+  - `ALL_TEST_SAMPLES` - All test samples by ID
 - Pattern classes: `IPv4Pattern`, `EmailPattern`, `NamePattern`, etc.
 - Strategy classes: `TokenStrategy`, `MaskStrategy`, `FormatPreservingStrategy`
 
 ### UI
 
-Vanilla JavaScript web application (no framework dependencies) with five main views:
+Vanilla JavaScript web application (no framework dependencies) with four main tabs:
 
-1. **Pattern Detection** - Toggle patterns on/off, select strategies per pattern
-2. **JSON Editor** - Full configuration editing with validation
+1. **Pattern Detection** - Toggle patterns on/off, select strategies per pattern, report issues
+2. **JSON Editor** - Full configuration editing with validation, view test metadata
 3. **Output Format** - Interactive per-pattern testing with live preview of all strategies
-4. **Pattern Builder** - Visual tool to create custom regex patterns from sample data
-5. **Community** - Browse and use community-contributed patterns
+4. **Pattern Validation** (New in v1.0.9) - Four sub-tabs:
+   - **Builder** - Visual tool to create/fix custom regex patterns from sample data
+   - **Test Samples** - Run patterns against 60 curated test samples, view quality scores
+   - **Community** - Browse and use community-contributed patterns
+   - **Edge Cases** - View and vote on reported pattern issues
 
 **UI Features:**
 - Mobile-responsive design with optimized touch targets
 - Collapsible accordion sections for better organization
 - Dark mode support
 - Keyboard shortcuts for common actions
+- Pattern testing with quality scoring (v1.0.9)
+- Issue reporting workflow (v1.0.9)
+- Pre-load system for fixing failed patterns (v1.0.9)
 
 ### API Server
 
-Bun-powered REST API for community patterns and feedback:
+Bun-powered REST API for community patterns, edge cases, and feedback:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/health` | GET | Health check |
 | `/api/redact` | POST | Redact text (server-side option) |
 | `/api/presets` | GET | List available presets |
+| **Community Patterns** |
 | `/api/patterns` | GET | List community patterns |
 | `/api/patterns` | POST | Submit a new pattern |
 | `/api/patterns/:id` | GET | Get pattern details |
 | `/api/patterns/:id/vote` | POST | Vote on a pattern |
 | `/api/patterns/:id/use` | POST | Mark pattern as used |
+| **Edge Cases (v1.0.9)** |
+| `/api/patterns/:name/edge-cases` | GET | List edge cases for a pattern |
+| `/api/patterns/:name/edge-cases` | POST | Submit edge case report |
+| `/api/edge-cases/:id` | GET | Get edge case details |
+| `/api/edge-cases/:id/vote` | POST | Vote on edge case |
+| `/api/edge-cases/:id` | PATCH | Update edge case status |
+| `/api/edge-cases/:id` | DELETE | Delete edge case |
+| **Sample Submissions (v1.0.9)** |
+| `/api/patterns/:name/sample-submissions` | GET | List submitted samples |
+| `/api/patterns/:name/sample-submissions` | POST | Submit test sample |
+| **Feedback** |
 | `/api/feedback` | GET/POST | Feedback collection |
 
 **Database:** MongoDB Atlas - works both locally and on Vercel. Set `MONGODB_URI` environment variable.
@@ -236,6 +277,44 @@ const refined = refineFromSamples(
   ['ABC-12345', 'XYZ-67890', 'DEF-11111'],
   { wordBoundaries: true }
 );
+```
+
+### Pattern Testing & Quality Scoring (New in v1.0.9)
+
+```typescript
+import {
+  PatternTestEngine,
+  calculateQualityScore,
+  getTestSamplesForPattern
+} from 'data-redactor-core';
+
+// Get test samples for a pattern
+const testSamples = getTestSamplesForPattern('ipv4');
+console.log(testSamples.length); // 5 test samples
+
+// Test a pattern against samples
+const patternConfig = {
+  enabled: true,
+  strategy: 'token',
+  regex: '\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b'
+};
+
+const results = testSamples.map(sample =>
+  PatternTestEngine.executeTest('ipv4', patternConfig, sample)
+);
+
+// Calculate quality score
+const qualityScore = calculateQualityScore(results, 0);
+console.log(qualityScore); // 0-100
+
+// Check results
+results.forEach(result => {
+  console.log(`Sample: ${result.sampleId}`);
+  console.log(`Passed: ${result.passed}`);
+  console.log(`Accuracy: ${result.accuracy}%`);
+  console.log(`False Positives: ${result.falsePositives}`);
+  console.log(`False Negatives: ${result.falseNegatives}`);
+});
 ```
 
 ### Custom Entities
