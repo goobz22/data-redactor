@@ -74,8 +74,7 @@
           <span id="tab-simple" class="tab active">Pattern Detection</span>
           <span id="tab-json" class="tab">JSON Editor</span>
           <span id="tab-output" class="tab">Output Format</span>
-          <span id="tab-builder" class="tab">Pattern Builder</span>
-          <span id="tab-community" class="tab">Community</span>
+          <span id="tab-validation" class="tab">Pattern Validation</span>
         </div>
       </div>
 
@@ -123,6 +122,7 @@
           <button id="btn-redact" class="btn">Redact Data</button>
           <button id="btn-copy" class="btn btn-secondary">Copy Output</button>
           <button id="btn-clear" class="btn btn-secondary">Clear All</button>
+          <button id="btn-report-issue" class="btn btn-report-issue" disabled>Report Pattern Issue</button>
         </div>
 
         <!-- Mapping Panel -->
@@ -180,9 +180,23 @@
         </div>
 
         <div class="json-editor-container">
-          <label class="label">Configuration JSON</label>
+          <div class="json-editor-header-row">
+            <label class="label">Configuration JSON</label>
+            <button id="btn-show-test-metadata" class="btn btn-small btn-secondary">
+              📊 View Test Samples & Quality Scores
+            </button>
+          </div>
           <div id="json-error" class="json-error hidden"></div>
           <textarea id="json-editor" class="json-editor" placeholder="Edit your configuration as JSON..."></textarea>
+
+          <!-- Test Samples Metadata Panel -->
+          <div id="test-samples-metadata" class="test-samples-metadata hidden">
+            <div class="metadata-header">
+              <h4>📊 Pattern Test Samples & Quality Scores</h4>
+              <button id="btn-close-metadata" class="btn-icon-small">&times;</button>
+            </div>
+            <div id="metadata-content" class="metadata-content"></div>
+          </div>
         </div>
 
         <details class="json-guide">
@@ -250,6 +264,27 @@
   "customerNames": ["John Doe", "Jane Smith"]
 }</pre>
             </div>
+
+            <div class="guide-section">
+              <h4 class="guide-section-title">5. Test Samples & Quality Testing</h4>
+              <p class="guide-text">All built-in patterns have test samples to ensure accuracy:</p>
+              <div class="info-box" style="margin: 12px 0; padding: 12px; background: rgba(52, 152, 219, 0.1); border: 1px solid rgba(52, 152, 219, 0.3); border-radius: 8px;">
+                <strong>📊 View Test Results:</strong> Go to <strong>Pattern Validation → Test Samples</strong> to:
+                <ul style="margin: 8px 0 0 20px; padding: 0;">
+                  <li>Run patterns against curated test data</li>
+                  <li>See quality scores (0-100)</li>
+                  <li>Identify false positives and false negatives</li>
+                  <li>View full sample content and expected matches</li>
+                </ul>
+              </div>
+              <p class="guide-text">Each pattern includes 5 test samples covering common cases and edge cases.</p>
+              <p class="guide-text"><strong>Quality Score Breakdown:</strong></p>
+              <div class="guide-fields">
+                <div class="guide-field"><span style="color: #27ae60;">●</span> <strong>80-100:</strong> High quality - Pattern works reliably across all test cases</div>
+                <div class="guide-field"><span style="color: #f39c12;">●</span> <strong>60-79:</strong> Medium quality - Some issues detected, review recommended</div>
+                <div class="guide-field"><span style="color: #e74c3c;">●</span> <strong>0-59:</strong> Low quality - Significant issues, pattern needs improvement</div>
+              </div>
+            </div>
           </div>
         </details>
       </div>
@@ -285,11 +320,24 @@
       </div>
 
       <!-- Pattern Builder Tab -->
-      <div id="content-builder" class="hidden">
-        <h2 class="section-title" style="color: #BF0A30;">Custom Pattern Builder</h2>
-        <p style="font-size: 15px; color: #002868; margin-bottom: 20px; font-weight: 600;">
-          Generate regex patterns from sample data. Mark the specific text you want to match across multiple samples.
-        </p>
+      <!-- Pattern Validation Tab -->
+      <div id="content-validation" class="hidden">
+        <!-- Sub-tabs Navigation -->
+        <div class="subtabs-container">
+          <div class="subtabs" id="validation-subtabs">
+            <span id="subtab-builder" class="subtab active">Builder</span>
+            <span id="subtab-tests" class="subtab">Test Samples</span>
+            <span id="subtab-community" class="subtab">Community</span>
+            <span id="subtab-issues" class="subtab">Edge Cases</span>
+          </div>
+        </div>
+
+        <!-- Builder Sub-tab -->
+        <div id="subcontent-builder">
+          <h2 class="section-title" style="color: #BF0A30;">Custom Pattern Builder</h2>
+          <p style="font-size: 15px; color: #002868; margin-bottom: 20px; font-weight: 600;">
+            Generate regex patterns from sample data. Mark the specific text you want to match across multiple samples.
+          </p>
 
         <!-- Existing Patterns Section -->
         <div id="existing-patterns-section" class="existing-patterns-section hidden">
@@ -423,13 +471,46 @@
           </div>
         </div>
 
-        <div class="info-box" style="margin-top: 20px;">
-          <strong>How it works:</strong> The pattern builder analyzes your sample data to detect structure patterns like digits, letters, special characters, and common formats (UUID, IPv4, MAC addresses). It generates an optimized regex that matches similar data.
+          <div class="info-box" style="margin-top: 20px;">
+            <strong>How it works:</strong> The pattern builder analyzes your sample data to detect structure patterns like digits, letters, special characters, and common formats (UUID, IPv4, MAC addresses). It generates an optimized regex that matches similar data.
+          </div>
         </div>
-      </div>
 
-      <!-- Community Patterns Tab -->
-      <div id="content-community" class="hidden">
+        <!-- Test Samples Sub-tab -->
+        <div id="subcontent-tests" class="hidden">
+          <h2 class="section-title" style="color: #002868;">Test Samples</h2>
+          <p style="font-size: 15px; color: #002868; margin-bottom: 20px; font-weight: 600;">
+            Test patterns against curated sample data to ensure accuracy and identify edge cases.
+          </p>
+
+          <div class="test-samples-container">
+            <div class="test-samples-header">
+              <label class="label">Select Pattern:</label>
+              <select id="test-pattern-select" class="pattern-select">
+                <option value="">Choose a pattern to test...</option>
+              </select>
+            </div>
+
+            <div id="quality-score-display" class="quality-score-display hidden">
+              <div class="quality-score-card">
+                <div class="quality-score-header">
+                  <h3>Pattern Quality Score</h3>
+                  <div id="quality-score-badge" class="quality-badge"></div>
+                </div>
+                <div id="quality-score-breakdown" class="quality-breakdown"></div>
+              </div>
+            </div>
+
+            <div id="test-results-container" class="test-results-container">
+              <div class="empty-state">
+                Select a pattern above to view test samples and run tests.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Community Sub-tab -->
+        <div id="subcontent-community" class="hidden">
         <div class="community-header">
           <div>
             <h2 class="section-title" style="color: #002868;">Community Patterns</h2>
@@ -479,15 +560,144 @@
           <button id="btn-go-builder" class="btn">Go to Pattern Builder</button>
         </div>
 
-        <!-- Database Info -->
-        <div class="info-box" style="margin-top: 20px;">
-          <strong>Database:</strong> Community patterns are stored in MongoDB.
-          To use this feature, set the <code>MONGODB_URI</code> environment variable and run <code>bun start</code>.
+          <!-- Database Info -->
+          <div class="info-box" style="margin-top: 20px;">
+            <strong>Database:</strong> Community patterns are stored in MongoDB.
+            To use this feature, set the <code>MONGODB_URI</code> environment variable and run <code>bun start</code>.
+          </div>
+        </div>
+
+        <!-- Edge Cases Sub-tab -->
+        <div id="subcontent-issues" class="hidden">
+          <div class="edge-cases-header">
+            <div>
+              <h2 class="section-title" style="color: #002868; margin: 0;">Edge Cases</h2>
+              <p style="font-size: 15px; color: #002868; margin: 8px 0 0 0; font-weight: 600;">
+                View pattern issues reported by users. Vote on issues and help improve pattern accuracy.
+              </p>
+            </div>
+            <div class="edge-cases-view-toggle">
+              <button id="btn-edge-case-compact" class="view-btn active">Compact</button>
+              <button id="btn-edge-case-expanded" class="view-btn">Expanded</button>
+            </div>
+          </div>
+
+          <div class="edge-cases-container">
+            <div class="edge-cases-filters">
+              <div class="filter-group">
+                <label class="label">Pattern:</label>
+                <select id="edge-case-pattern-filter" class="filter-select">
+                  <option value="">All Patterns</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label class="label">Status:</label>
+                <select id="edge-case-status-filter" class="filter-select">
+                  <option value="">All</option>
+                  <option value="open">Open</option>
+                  <option value="fixed">Fixed</option>
+                  <option value="wont-fix">Won't Fix</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label class="label">Sort by:</label>
+                <select id="edge-case-sort" class="filter-select">
+                  <option value="votes">Most Voted</option>
+                  <option value="recent">Most Recent</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="edge-cases-list" class="edge-cases-list">
+              <div class="empty-state">
+                No edge cases found. Report an issue from the Pattern Detection tab.
+              </div>
+            </div>
+
+            <div id="edge-case-pagination" class="pagination hidden">
+              <button id="btn-prev-edge-cases" class="btn btn-small btn-secondary" disabled>Previous</button>
+              <span id="edge-case-pagination-info" class="pagination-info">Page 1 of 1</span>
+              <button id="btn-next-edge-cases" class="btn btn-small btn-secondary" disabled>Next</button>
+            </div>
+          </div>
+
+          <div class="info-box" style="margin-top: 20px;">
+            <strong>Database:</strong> Edge case reports are stored in MongoDB.
+            To use this feature, set the <code>MONGODB_URI</code> environment variable and run <code>bun start</code>.
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <script src="./main.js"></script>
+  <!-- Report Issue Modal -->
+  <div id="report-issue-modal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Report Pattern Issue</h2>
+        <button id="btn-close-modal" class="modal-close">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <p class="modal-description">
+          Help us improve pattern detection by reporting issues. Your submission will help fix this pattern for everyone.
+        </p>
+
+        <div class="form-group">
+          <label class="label" for="issue-pattern">Pattern</label>
+          <select id="issue-pattern" class="text-input">
+            <option value="">Select pattern...</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="label" for="issue-type">Issue Type</label>
+          <select id="issue-type" class="text-input">
+            <option value="false-positive">False Positive (matched when it shouldn't)</option>
+            <option value="false-negative">False Negative (didn't match when it should)</option>
+            <option value="performance">Performance Issue</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="label" for="issue-sample-text">Full Sample Text (max 500 lines)</label>
+          <p class="field-hint">Paste the complete context. Select text below to auto-fill problematic value.</p>
+          <textarea id="issue-sample-text" class="text-input" rows="10" placeholder="Paste entire log/config/text here..."></textarea>
+          <div class="line-counter">
+            <span id="line-count">0</span> / 500 lines
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="label" for="issue-problematic-value">Problematic Value</label>
+          <p class="field-hint">The specific text causing the issue</p>
+          <input type="text" id="issue-problematic-value" class="text-input" placeholder="Select text above or enter manually">
+        </div>
+
+        <div class="form-group">
+          <label class="label" for="issue-expected-behavior">Expected Behavior</label>
+          <select id="issue-expected-behavior" class="text-input">
+            <option value="should-match">Should match</option>
+            <option value="should-not-match">Should NOT match</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="label" for="issue-context">Additional Context (optional)</label>
+          <textarea id="issue-context" class="text-input" rows="3" placeholder="Why is this an issue? What's the use case?"></textarea>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="btn-cancel-issue" class="btn btn-secondary">Cancel</button>
+        <button id="btn-submit-issue" class="btn">Submit Issue</button>
+      </div>
+
+      <div id="issue-submit-status" class="submit-status hidden"></div>
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
 </body>
 </html>

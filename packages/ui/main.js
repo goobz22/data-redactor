@@ -4,10 +4,37 @@ import {
   DEFAULT_CONFIG,
   generateFromSample,
   refineFromSamples,
+  PatternTestEngine,
+  calculateQualityScore,
+  getQualityTier,
+  getTestSamplesForPattern,
+  getTestSample,
+  BasePattern,
 } from '../core/src/index.js'
+import { extractText, isSupported } from './utils/fileExtractor.js'
 
 // LocalStorage key for persisting config
 const CONFIG_STORAGE_KEY = 'dataRedactor_config'
+
+// Helper function to create a Pattern instance from pattern name and config
+function createPatternFromConfig(patternName, patternConfig) {
+  if (!patternConfig || !patternConfig.regex) {
+    return null
+  }
+
+  try {
+    const regex = new RegExp(patternConfig.regex, patternConfig.flags || 'g')
+    return new BasePattern(
+      patternName,
+      regex,
+      patternConfig.strategy || 'token',
+      patternConfig.enabled !== false
+    )
+  } catch (error) {
+    console.error(`Failed to create pattern ${patternName}:`, error)
+    return null
+  }
+}
 
 // State
 let inputText = ''
@@ -36,16 +63,15 @@ let editingPatternIndex = null // Index of pattern being edited, null if creatin
 
 // Community tab state
 // API URL detection:
-// - Vercel deployment: use same origin (serverless functions at /api)
-// - Self-hosted production (port 3000): use same origin
-// - Dev mode (other ports): use localhost:3001
-const isVercel = window.location.hostname.includes('vercel.app')
-const isProduction =
-  window.location.port === '3000' || window.location.port === ''
-const API_BASE_URL =
-  isVercel || isProduction
-    ? window.location.origin // Vercel or production: same origin
-    : 'http://localhost:3001' // Dev mode: API on port 3001
+// - Dev mode (localhost:3000): API on port 3001
+// - Production/Vercel: API on same origin
+const isLocalhost =
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === '127.0.0.1'
+const isDevMode = isLocalhost && window.location.port === '3000'
+const API_BASE_URL = isDevMode
+  ? 'http://localhost:3001' // Dev mode: UI on 3000, API on 3001
+  : window.location.origin // Production/Vercel: same origin
 let communityPatterns = []
 let communityCurrentPage = 1
 let communityTotalPages = 1
@@ -242,6 +268,9 @@ Contact support@company.com or call 1-555-FLOWERS for assistance.`,
 // DOM Elements
 const elements = {}
 
+// State
+let edgeCaseViewMode = 'compact' // 'compact' or 'expanded'
+
 // Initialize
 document.addEventListener('DOMContentLoaded', init)
 
@@ -326,11 +355,22 @@ function cacheElements() {
   elements.tabSimple = document.getElementById('tab-simple')
   elements.tabJson = document.getElementById('tab-json')
   elements.tabOutput = document.getElementById('tab-output')
-  elements.tabBuilder = document.getElementById('tab-builder')
+  elements.tabValidation = document.getElementById('tab-validation')
   elements.contentSimple = document.getElementById('content-simple')
   elements.contentJson = document.getElementById('content-json')
   elements.contentOutput = document.getElementById('content-output')
-  elements.contentBuilder = document.getElementById('content-builder')
+  elements.contentValidation = document.getElementById('content-validation')
+
+  // Validation sub-tabs
+  elements.subtabBuilder = document.getElementById('subtab-builder')
+  elements.subtabTests = document.getElementById('subtab-tests')
+  elements.subtabCommunity = document.getElementById('subtab-community')
+  elements.subtabIssues = document.getElementById('subtab-issues')
+  elements.subcontentBuilder = document.getElementById('subcontent-builder')
+  elements.subcontentTests = document.getElementById('subcontent-tests')
+  elements.subcontentCommunity = document.getElementById('subcontent-community')
+  elements.subcontentIssues = document.getElementById('subcontent-issues')
+
   elements.patternCards = document.getElementById('pattern-cards')
   elements.outputPatterns = document.getElementById('output-patterns')
   elements.inputText = document.getElementById('input-text')
@@ -344,6 +384,13 @@ function cacheElements() {
   elements.btnClear = document.getElementById('btn-clear')
   elements.btnCopyMapping = document.getElementById('btn-copy-mapping')
   elements.btnInsertTest = document.getElementById('btn-insert-test')
+  elements.btnUploadFile = document.getElementById('btn-upload-file')
+  elements.fileDropZone = document.getElementById('file-drop-zone')
+  elements.fileInput = document.getElementById('file-input')
+  elements.fileStatus = document.getElementById('file-status')
+  elements.fileStatusIcon = document.getElementById('file-status-icon')
+  elements.fileStatusText = document.getElementById('file-status-text')
+  elements.btnClearFile = document.getElementById('btn-clear-file')
   elements.btnImportJson = document.getElementById('btn-import-json')
   elements.btnSaveConfig = document.getElementById('btn-save-config')
   elements.btnExportEdited = document.getElementById('btn-export-edited')
@@ -415,9 +462,7 @@ function cacheElements() {
   elements.editingPatternName = document.getElementById('editing-pattern-name')
   elements.btnCancelEdit = document.getElementById('btn-cancel-edit')
 
-  // Community tab elements
-  elements.tabCommunity = document.getElementById('tab-community')
-  elements.contentCommunity = document.getElementById('content-community')
+  // Community sub-tab elements (now under validation)
   elements.communityPatternsList = document.getElementById(
     'community-patterns-list'
   )
@@ -434,77 +479,181 @@ function cacheElements() {
   elements.btnNextPage = document.getElementById('btn-next-page')
   elements.paginationInfo = document.getElementById('pagination-info')
   elements.btnGoBuilder = document.getElementById('btn-go-builder')
+
+  // Test Samples sub-tab elements
+  elements.testPatternSelect = document.getElementById('test-pattern-select')
+  elements.qualityScoreDisplay = document.getElementById(
+    'quality-score-display'
+  )
+  elements.qualityScoreBadge = document.getElementById('quality-score-badge')
+  elements.qualityScoreBreakdown = document.getElementById(
+    'quality-score-breakdown'
+  )
+  elements.testResultsContainer = document.getElementById(
+    'test-results-container'
+  )
+
+  // Edge Cases sub-tab elements
+  elements.edgeCasePatternFilter = document.getElementById(
+    'edge-case-pattern-filter'
+  )
+  elements.edgeCaseStatusFilter = document.getElementById(
+    'edge-case-status-filter'
+  )
+  elements.edgeCaseSort = document.getElementById('edge-case-sort')
+  elements.edgeCasesList = document.getElementById('edge-cases-list')
+  elements.edgeCasePagination = document.getElementById('edge-case-pagination')
+  elements.btnEdgeCaseCompact = document.getElementById('btn-edge-case-compact')
+  elements.btnEdgeCaseExpanded = document.getElementById(
+    'btn-edge-case-expanded'
+  )
+
+  // JSON Editor test metadata elements
+  elements.btnShowTestMetadata = document.getElementById(
+    'btn-show-test-metadata'
+  )
+  elements.testSamplesMetadata = document.getElementById(
+    'test-samples-metadata'
+  )
+  elements.btnCloseMetadata = document.getElementById('btn-close-metadata')
+  elements.metadataContent = document.getElementById('metadata-content')
+  elements.btnPrevEdgeCases = document.getElementById('btn-prev-edge-cases')
+  elements.btnNextEdgeCases = document.getElementById('btn-next-edge-cases')
+  elements.edgeCasePaginationInfo = document.getElementById(
+    'edge-case-pagination-info'
+  )
+
+  // Report Issue modal elements
+  elements.btnReportIssue = document.getElementById('btn-report-issue')
+  elements.reportIssueModal = document.getElementById('report-issue-modal')
+  elements.btnCloseModal = document.getElementById('btn-close-modal')
+  elements.btnCancelIssue = document.getElementById('btn-cancel-issue')
+  elements.btnSubmitIssue = document.getElementById('btn-submit-issue')
+  elements.issuePattern = document.getElementById('issue-pattern')
+  elements.issueType = document.getElementById('issue-type')
+  elements.issueSampleText = document.getElementById('issue-sample-text')
+  elements.issueProblematicValue = document.getElementById(
+    'issue-problematic-value'
+  )
+  elements.issueExpectedBehavior = document.getElementById(
+    'issue-expected-behavior'
+  )
+  elements.issueContext = document.getElementById('issue-context')
+  elements.lineCount = document.getElementById('line-count')
+  elements.issueSubmitStatus = document.getElementById('issue-submit-status')
 }
 
 function bindEvents() {
+  // Helper function to safely add event listener
+  const addListener = (element, event, handler) => {
+    if (element) {
+      element.addEventListener(event, handler)
+    } else {
+      console.warn('Element not found for event binding:', event)
+    }
+  }
+
   // Tabs
-  elements.tabSimple.addEventListener('click', () => setActiveTab('simple'))
-  elements.tabJson.addEventListener('click', () => setActiveTab('json'))
-  elements.tabOutput.addEventListener('click', () => setActiveTab('output'))
-  elements.tabBuilder.addEventListener('click', () => setActiveTab('builder'))
-  elements.tabCommunity.addEventListener('click', () =>
-    setActiveTab('community')
+  addListener(elements.tabSimple, 'click', () => setActiveTab('simple'))
+  addListener(elements.tabJson, 'click', () => setActiveTab('json'))
+  addListener(elements.tabOutput, 'click', () => setActiveTab('output'))
+  addListener(elements.tabValidation, 'click', () => setActiveTab('validation'))
+
+  // Sub-tabs
+  addListener(elements.subtabBuilder, 'click', () => setActiveSubTab('builder'))
+  addListener(elements.subtabTests, 'click', () => setActiveSubTab('tests'))
+  addListener(elements.subtabCommunity, 'click', () =>
+    setActiveSubTab('community')
   )
+  addListener(elements.subtabIssues, 'click', () => setActiveSubTab('issues'))
 
   // Main actions
-  elements.btnRedact.addEventListener('click', handleRedact)
-  elements.btnCopy.addEventListener('click', handleCopy)
-  elements.btnClear.addEventListener('click', handleClear)
-  elements.btnCopyMapping.addEventListener('click', handleCopyMapping)
-  elements.btnInsertTest.addEventListener('click', handleInsertTestData)
+  addListener(elements.btnRedact, 'click', handleRedact)
+  addListener(elements.btnCopy, 'click', handleCopy)
+  addListener(elements.btnClear, 'click', handleClear)
+  addListener(elements.btnCopyMapping, 'click', handleCopyMapping)
+  addListener(elements.btnInsertTest, 'click', handleInsertTestData)
+
+  // File upload events
+  addListener(elements.btnUploadFile, 'click', () => elements.fileInput.click())
+  addListener(elements.fileDropZone, 'click', () => elements.fileInput.click())
+  addListener(elements.fileInput, 'change', handleFileSelect)
+  addListener(elements.fileDropZone, 'dragover', handleDragOver)
+  addListener(elements.fileDropZone, 'dragleave', handleDragLeave)
+  addListener(elements.fileDropZone, 'drop', handleFileDrop)
+  addListener(elements.btnClearFile, 'click', handleClearFile)
 
   // JSON actions
-  elements.btnImportJson.addEventListener('click', handleImportJson)
-  elements.btnSaveConfig.addEventListener('click', handleSaveConfig)
-  elements.btnExportEdited.addEventListener('click', handleExportEditedJson)
-  elements.btnExportDefault.addEventListener('click', handleExportDefaultJson)
-  elements.btnReset.addEventListener('click', handleResetConfig)
+  addListener(elements.btnImportJson, 'click', handleImportJson)
+  addListener(elements.btnSaveConfig, 'click', handleSaveConfig)
+  addListener(elements.btnExportEdited, 'click', handleExportEditedJson)
+  addListener(elements.btnExportDefault, 'click', handleExportDefaultJson)
+  addListener(elements.btnReset, 'click', handleResetConfig)
+
+  // Test metadata panel
+  addListener(elements.btnShowTestMetadata, 'click', showTestMetadataPanel)
+  addListener(elements.btnCloseMetadata, 'click', hideTestMetadataPanel)
 
   // Input sync
-  elements.inputText.addEventListener('input', e => {
+  addListener(elements.inputText, 'input', e => {
     inputText = e.target.value
   })
 
-  elements.jsonEditor.addEventListener('input', e => {
+  addListener(elements.jsonEditor, 'input', e => {
     handleJsonChange(e.target.value)
   })
 
   // Enable/Disable all patterns
-  elements.btnEnableAll.addEventListener('click', handleEnableAll)
-  elements.btnDisableAll.addEventListener('click', handleDisableAll)
+  addListener(elements.btnEnableAll, 'click', handleEnableAll)
+  addListener(elements.btnDisableAll, 'click', handleDisableAll)
 
   // Output Format view toggle
-  elements.btnViewCompact.addEventListener('click', () =>
-    setOutputView('compact')
-  )
-  elements.btnViewExpanded.addEventListener('click', () =>
+  addListener(elements.btnViewCompact, 'click', () => setOutputView('compact'))
+  addListener(elements.btnViewExpanded, 'click', () =>
     setOutputView('expanded')
   )
 
   // Pattern Builder events
-  elements.btnMarkSelection.addEventListener('click', handleMarkSelection)
-  elements.btnClearMarks.addEventListener('click', handleClearMarks)
-  elements.btnAddSample.addEventListener('click', handleAddSample)
-  elements.btnGeneratePattern.addEventListener('click', handleGeneratePattern)
-  elements.btnCopyRegex.addEventListener('click', handleCopyRegex)
-  elements.btnAddPattern.addEventListener('click', handleAddPattern)
-  elements.builderTestInput.addEventListener('input', handleTestPattern)
-  elements.btnSubmitPattern.addEventListener('click', handleSubmitPattern)
-  elements.btnCancelEdit.addEventListener('click', handleCancelEdit)
+  addListener(elements.btnMarkSelection, 'click', handleMarkSelection)
+  addListener(elements.btnClearMarks, 'click', handleClearMarks)
+  addListener(elements.btnAddSample, 'click', handleAddSample)
+  addListener(elements.btnGeneratePattern, 'click', handleGeneratePattern)
+  addListener(elements.btnCopyRegex, 'click', handleCopyRegex)
+  addListener(elements.btnAddPattern, 'click', handleAddPattern)
+  addListener(elements.builderTestInput, 'input', handleTestPattern)
+  addListener(elements.btnSubmitPattern, 'click', handleSubmitPattern)
+  addListener(elements.btnCancelEdit, 'click', handleCancelEdit)
 
   // Community tab events
-  elements.btnRefreshPatterns.addEventListener('click', fetchCommunityPatterns)
-  elements.communityCategoryFilter.addEventListener(
+  addListener(elements.btnRefreshPatterns, 'click', fetchCommunityPatterns)
+  addListener(
+    elements.communityCategoryFilter,
     'change',
     fetchCommunityPatterns
   )
-  elements.communityStatusFilter.addEventListener(
-    'change',
-    fetchCommunityPatterns
-  )
-  elements.btnPrevPage.addEventListener('click', () => changePage(-1))
-  elements.btnNextPage.addEventListener('click', () => changePage(1))
-  elements.btnGoBuilder.addEventListener('click', () => setActiveTab('builder'))
+  addListener(elements.communityStatusFilter, 'change', fetchCommunityPatterns)
+  addListener(elements.btnPrevPage, 'click', () => changePage(-1))
+
+  // Report Issue modal events
+  addListener(elements.btnReportIssue, 'click', openReportIssueModal)
+  addListener(elements.btnCloseModal, 'click', closeReportIssueModal)
+  addListener(elements.btnCancelIssue, 'click', closeReportIssueModal)
+  addListener(elements.btnSubmitIssue, 'click', handleSubmitIssue)
+  addListener(elements.issueSampleText, 'input', updateLineCount)
+  addListener(elements.issueSampleText, 'mouseup', handleSampleTextSelection)
+
+  // Modal overlay click handler - needs special handling
+  if (elements.reportIssueModal) {
+    const modalOverlay =
+      elements.reportIssueModal.querySelector('.modal-overlay')
+    addListener(modalOverlay, 'click', closeReportIssueModal)
+  }
+
+  addListener(elements.btnNextPage, 'click', () => changePage(1))
+  addListener(elements.btnGoBuilder, 'click', () => {
+    setActiveTab('validation')
+    setActiveSubTab('builder')
+  })
 }
 
 function setActiveTab(tab) {
@@ -512,27 +661,58 @@ function setActiveTab(tab) {
   elements.tabSimple.classList.toggle('active', tab === 'simple')
   elements.tabJson.classList.toggle('active', tab === 'json')
   elements.tabOutput.classList.toggle('active', tab === 'output')
-  elements.tabBuilder.classList.toggle('active', tab === 'builder')
-  elements.tabCommunity.classList.toggle('active', tab === 'community')
+  elements.tabValidation.classList.toggle('active', tab === 'validation')
 
   // Show/hide content
   elements.contentSimple.classList.toggle('hidden', tab !== 'simple')
   elements.contentJson.classList.toggle('hidden', tab !== 'json')
   elements.contentOutput.classList.toggle('hidden', tab !== 'output')
-  elements.contentBuilder.classList.toggle('hidden', tab !== 'builder')
-  elements.contentCommunity.classList.toggle('hidden', tab !== 'community')
+  elements.contentValidation.classList.toggle('hidden', tab !== 'validation')
 
   // Scroll to active tab on mobile
   scrollToActiveTab()
 
-  // Render existing patterns when switching to builder tab
-  if (tab === 'builder') {
+  // Initialize sub-tabs when switching to validation tab
+  if (tab === 'validation') {
+    // Default to builder sub-tab
+    setActiveSubTab('builder')
+  }
+}
+
+function setActiveSubTab(subtab) {
+  // Update sub-tab styles
+  elements.subtabBuilder.classList.toggle('active', subtab === 'builder')
+  elements.subtabTests.classList.toggle('active', subtab === 'tests')
+  elements.subtabCommunity.classList.toggle('active', subtab === 'community')
+  elements.subtabIssues.classList.toggle('active', subtab === 'issues')
+
+  // Show/hide sub-content
+  elements.subcontentBuilder.classList.toggle('hidden', subtab !== 'builder')
+  elements.subcontentTests.classList.toggle('hidden', subtab !== 'tests')
+  elements.subcontentCommunity.classList.toggle(
+    'hidden',
+    subtab !== 'community'
+  )
+  elements.subcontentIssues.classList.toggle('hidden', subtab !== 'issues')
+
+  // Render existing patterns when switching to builder sub-tab
+  if (subtab === 'builder') {
     renderExistingPatterns()
   }
 
-  // Fetch community patterns when switching to community tab
-  if (tab === 'community') {
+  // Fetch community patterns when switching to community sub-tab
+  if (subtab === 'community') {
     fetchCommunityPatterns()
+  }
+
+  // Populate pattern selects when switching to tests or issues sub-tabs
+  if (subtab === 'tests') {
+    populateTestPatternSelect()
+  }
+
+  if (subtab === 'issues') {
+    populateEdgeCaseFilters()
+    fetchEdgeCases()
   }
 }
 
@@ -998,6 +1178,11 @@ function handleRedact() {
 
     elements.redactedText.value = redactedText
     renderMapping()
+
+    // Enable Report Issue button after redaction
+    if (elements.btnReportIssue) {
+      elements.btnReportIssue.disabled = false
+    }
   } catch (error) {
     console.error('Redaction error:', error)
     alert(`Error: ${error}`)
@@ -1029,6 +1214,111 @@ function handleCopyMapping() {
 function handleInsertTestData() {
   inputText = config.testData || ''
   elements.inputText.value = inputText
+}
+
+// File Upload Handlers
+function handleDragOver(e) {
+  e.preventDefault()
+  e.stopPropagation()
+  elements.fileDropZone.classList.add('drag-over')
+}
+
+function handleDragLeave(e) {
+  e.preventDefault()
+  e.stopPropagation()
+  elements.fileDropZone.classList.remove('drag-over')
+}
+
+function handleFileDrop(e) {
+  e.preventDefault()
+  e.stopPropagation()
+  elements.fileDropZone.classList.remove('drag-over')
+
+  const files = e.dataTransfer.files
+  if (files.length > 0) {
+    processFiles(files)
+  }
+}
+
+function handleFileSelect(e) {
+  const files = e.target.files
+  if (files.length > 0) {
+    processFiles(files)
+  }
+}
+
+async function processFiles(files) {
+  // Show processing status
+  showFileStatus('processing', 'Processing file...')
+
+  try {
+    let combinedText = ''
+
+    for (const file of files) {
+      if (!isSupported(file)) {
+        showFileStatus('error', `Unsupported format: ${file.name}`)
+        return
+      }
+
+      const result = await extractText(file)
+
+      if (result.error) {
+        if (result.isScanned) {
+          showFileStatus(
+            'warning',
+            `${file.name}: Scanned PDF detected. Text-based PDFs only.`
+          )
+        } else {
+          showFileStatus('error', `${file.name}: ${result.error}`)
+        }
+        return
+      }
+
+      if (result.text) {
+        if (combinedText) combinedText += '\n\n'
+        combinedText += result.text
+      }
+    }
+
+    if (combinedText) {
+      inputText = combinedText
+      elements.inputText.value = inputText
+
+      const fileCount = files.length
+      const charCount = combinedText.length.toLocaleString()
+      showFileStatus(
+        'success',
+        `Extracted ${charCount} characters from ${fileCount} file${fileCount > 1 ? 's' : ''}`
+      )
+    } else {
+      showFileStatus('warning', 'No text content found in file(s)')
+    }
+  } catch (err) {
+    showFileStatus('error', `Error: ${err.message}`)
+  }
+
+  // Reset file input for re-upload
+  elements.fileInput.value = ''
+}
+
+function showFileStatus(type, message) {
+  elements.fileStatus.classList.remove('hidden', 'success', 'error', 'warning')
+  elements.fileStatus.classList.add(type)
+
+  const icons = {
+    processing: '&#x23F3;',
+    success: '&#x2705;',
+    error: '&#x274C;',
+    warning: '&#x26A0;',
+  }
+
+  elements.fileStatusIcon.innerHTML = icons[type] || icons.processing
+  elements.fileStatusText.textContent = message
+}
+
+function handleClearFile() {
+  elements.fileStatus.classList.add('hidden')
+  elements.fileInput.value = ''
 }
 
 function handleJsonChange(value) {
@@ -1137,6 +1427,154 @@ function handleResetConfig() {
   updateJsonConfig()
   renderPatternCards()
   renderOutputFormatTab()
+}
+
+// =============================================================================
+// TEST METADATA PANEL (JSON EDITOR)
+// =============================================================================
+
+// Helper to fetch known issues count from API
+async function getKnownIssuesCount(patternName) {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/patterns/${patternName}/edge-cases?status=open`
+    )
+    if (!response.ok) return 0
+    const data = await response.json()
+    return data.count || 0
+  } catch {
+    return 0
+  }
+}
+
+async function showTestMetadataPanel() {
+  // Load test samples for all built-in patterns and calculate quality scores
+  const builtInPatterns = [
+    'ipv4',
+    'ipv6',
+    'macAddress',
+    'email',
+    'phone',
+    'ssn',
+    'creditCard',
+    'hostname',
+    'ticketNumber',
+    'name',
+    'uuid',
+    'filePath',
+  ]
+
+  const patternMetadata = await Promise.all(
+    builtInPatterns.map(async patternName => {
+      const testSamples = getTestSamplesForPattern(patternName)
+      const patternConfig = config.patterns[patternName]
+
+      if (!testSamples || testSamples.length === 0 || !patternConfig) {
+        return null
+      }
+
+      // Execute tests
+      const testResults = []
+      const pattern = createPatternFromConfig(patternName, patternConfig)
+      if (!pattern) {
+        return null
+      }
+
+      for (const sample of testSamples) {
+        const result = PatternTestEngine.executeTest(pattern, sample)
+        testResults.push(result)
+      }
+
+      // Calculate quality score
+      const knownIssues = await getKnownIssuesCount(patternName)
+      const qualityScoreBreakdown = calculateQualityScore(
+        testResults,
+        knownIssues
+      )
+      const qualityScore = qualityScoreBreakdown.totalScore
+      const qualityTier = getQualityTier(qualityScore)
+      const passedTests = testResults.filter(r => r.passed).length
+
+      return {
+        patternName,
+        sampleIds: testSamples.map(s => s.id),
+        sampleCount: testSamples.length,
+        qualityScore,
+        qualityTier,
+        passedTests,
+        totalTests: testResults.length,
+        knownIssues,
+      }
+    })
+  )
+
+  const filteredMetadata = patternMetadata.filter(Boolean)
+
+  // Render metadata
+  elements.metadataContent.innerHTML = filteredMetadata
+    .map(
+      meta => `
+    <div class="pattern-metadata-card">
+      <div class="metadata-card-header">
+        <h5>${formatPatternName(meta.patternName)}</h5>
+        <span class="quality-badge ${meta.qualityTier}">
+          ${meta.qualityScore}
+        </span>
+      </div>
+
+      <div class="metadata-card-body">
+        <div class="metadata-stat">
+          <span class="metadata-label">Test Samples:</span>
+          <span class="metadata-value">${meta.sampleCount}</span>
+        </div>
+        <div class="metadata-stat">
+          <span class="metadata-label">Tests Passed:</span>
+          <span class="metadata-value">${meta.passedTests}/${meta.totalTests}</span>
+        </div>
+
+        <div class="metadata-samples">
+          <details>
+            <summary class="metadata-summary">View Sample IDs (${meta.sampleCount})</summary>
+            <div class="metadata-sample-list">
+              ${meta.sampleIds.map(id => `<code class="sample-id">${id}</code>`).join('')}
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <div class="metadata-card-footer">
+        <button class="btn btn-small btn-primary" onclick="navigateToTestSamples('${meta.patternName}')">
+          View Test Results
+        </button>
+      </div>
+    </div>
+  `
+    )
+    .join('')
+
+  elements.testSamplesMetadata.classList.remove('hidden')
+}
+
+function hideTestMetadataPanel() {
+  elements.testSamplesMetadata.classList.add('hidden')
+}
+
+// Navigate to Test Samples sub-tab with specific pattern pre-selected
+window.navigateToTestSamples = function (patternName) {
+  // Switch to Pattern Validation tab
+  setActiveTab('validation')
+
+  // Switch to Test Samples sub-tab
+  setActiveSubTab('tests')
+
+  // Set the pattern in the dropdown
+  elements.testPatternSelect.value = patternName
+
+  // Trigger the change event to load test results
+  handleTestPatternChange()
+
+  // Hide the metadata panel
+  hideTestMetadataPanel()
 }
 
 function renderMapping() {
@@ -1271,6 +1709,251 @@ function handleCancelEdit() {
 
   // Update existing patterns list to remove editing state
   renderExistingPatterns()
+}
+
+// =============================================================================
+// PATTERN BUILDER PRE-LOAD SYSTEM
+// =============================================================================
+
+/**
+ * Pre-load Pattern Builder with a sample to fix
+ * @param {Object} params
+ * @param {string} params.patternName - Pattern name (e.g., 'ipv4')
+ * @param {string} params.sampleText - Full sample text (log, config, etc.)
+ * @param {string} params.problematicValue - Specific value causing the issue
+ * @param {string} params.currentRegex - Current regex for this pattern
+ * @param {string} params.context - Context description (e.g., "Fixing false-positive")
+ */
+function preloadPatternBuilder({
+  patternName,
+  sampleText,
+  problematicValue,
+  currentRegex,
+  context,
+}) {
+  // Switch to Pattern Validation tab
+  setActiveTab('validation')
+
+  // Switch to Builder sub-tab
+  setActiveSubTab('builder')
+
+  // Clear existing samples
+  elements.samplesContainer.innerHTML = ''
+  markedTexts = []
+  fullSampleTexts = []
+  sampleCount = 0
+
+  // Add the pre-loaded sample
+  sampleCount = 1
+  const wrapper = document.createElement('div')
+  wrapper.className = 'sample-wrapper'
+  wrapper.dataset.sampleIndex = 0
+
+  wrapper.innerHTML = `
+    <div class="sample-header">
+      <span class="sample-label">Sample 1 (Pre-loaded)</span>
+      <button class="btn-remove-sample" onclick="this.closest('.sample-wrapper').remove(); updateSampleLabels();">Remove</button>
+    </div>
+    <div class="builder-input-editable sample-input" contenteditable="true">${escapeHtml(sampleText)}</div>
+  `
+
+  elements.samplesContainer.appendChild(wrapper)
+
+  // Show context banner
+  const contextBanner = document.createElement('div')
+  contextBanner.className = 'preload-context-banner'
+  contextBanner.setAttribute('data-pattern-key', patternName)
+  contextBanner.innerHTML = `
+    <div class="banner-content">
+      <strong>🔧 Fixing Pattern:</strong> ${formatPatternName(patternName)}
+      <span class="banner-context">${context}</span>
+    </div>
+    <div class="banner-info">
+      <span class="banner-label">Current Regex:</span>
+      <code class="banner-regex">${escapeHtml(currentRegex || 'Not set')}</code>
+    </div>
+    <div class="banner-hint">
+      <strong>Problematic Value:</strong> <code>${escapeHtml(problematicValue)}</code>
+    </div>
+    <div class="banner-actions">
+      <button class="btn btn-primary" onclick="saveToBuiltInPattern()" style="margin-right: 10px;">
+        💾 Save Improved Regex to Pattern
+      </button>
+      <button class="btn-small btn-secondary" onclick="clearPreloadBanner()">Clear Banner</button>
+    </div>
+  `
+
+  // Insert banner before samples container
+  const samplesHeader = elements.samplesContainer.previousElementSibling
+  samplesHeader.insertAdjacentElement('afterend', contextBanner)
+
+  // Scroll to Pattern Builder
+  elements.samplesContainer.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start',
+  })
+
+  // Highlight the problematic value in the sample text
+  if (problematicValue && sampleText.includes(problematicValue)) {
+    setTimeout(() => {
+      const sampleInput =
+        elements.samplesContainer.querySelector('.sample-input')
+      if (sampleInput) {
+        // Find the problematic value and wrap it in a highlight span
+        const content = sampleInput.textContent
+        const index = content.indexOf(problematicValue)
+        if (index !== -1) {
+          const before = content.substring(0, index)
+          const match = content.substring(
+            index,
+            index + problematicValue.length
+          )
+          const after = content.substring(index + problematicValue.length)
+
+          sampleInput.innerHTML = `${escapeHtml(before)}<mark style="background: rgba(241, 196, 15, 0.3); color: #f1c40f; font-weight: bold;">${escapeHtml(match)}</mark>${escapeHtml(after)}`
+        }
+      }
+    }, 100)
+  }
+
+  // Show success message
+  alert(
+    `Pattern Builder pre-loaded!\n\nPattern: ${formatPatternName(patternName)}\nContext: ${context}\n\nThe problematic value is highlighted. Select and mark the text you want to match, then click "Generate Pattern".`
+  )
+}
+
+// Clear the pre-load context banner
+window.clearPreloadBanner = function () {
+  const banner = document.querySelector('.preload-context-banner')
+  if (banner) {
+    banner.remove()
+  }
+}
+
+/**
+ * Save improved regex to built-in pattern configuration
+ * This is called when fixing a built-in pattern from test failures or edge cases
+ */
+window.saveToBuiltInPattern = function () {
+  if (!generatedPattern || !generatedPattern.valid) {
+    alert('Please generate a valid pattern first')
+    return
+  }
+
+  // Get pattern name from banner
+  const banner = document.querySelector('.preload-context-banner')
+  if (!banner) {
+    alert(
+      'No pre-loaded pattern found. Use "Add to Config" for custom patterns.'
+    )
+    return
+  }
+
+  // Get pattern key from data attribute
+  const patternKey = banner.getAttribute('data-pattern-key')
+  if (!patternKey || !config.patterns[patternKey]) {
+    alert(`Pattern not found in config: ${patternKey}`)
+    return
+  }
+
+  const formattedName = formatPatternName(patternKey)
+
+  // Get OLD pattern config for comparison
+  const oldPatternConfig = { ...config.patterns[patternKey] }
+
+  // Get test samples for this pattern
+  const testSamples = getTestSamplesForPattern(patternKey)
+
+  if (!testSamples || testSamples.length === 0) {
+    // No test samples, just save without testing
+    config.patterns[patternKey].regex = generatedPattern.regex
+    config.patterns[patternKey].lastTested = new Date().toISOString()
+
+    updateJsonConfig()
+    renderPatternCards()
+
+    window.clearPreloadBanner()
+
+    alert(
+      `✅ Pattern updated!\n\nPattern: ${formattedName}\nNew regex saved to configuration.\n\nNo test samples available for comparison.`
+    )
+    return
+  }
+
+  // Test OLD regex
+  const oldTestResults = []
+  const oldPattern = createPatternFromConfig(patternKey, oldPatternConfig)
+  if (!oldPattern) {
+    alert(`Error: Could not create pattern for ${formattedName}`)
+    return
+  }
+
+  for (const sample of testSamples) {
+    const result = PatternTestEngine.executeTest(oldPattern, sample)
+    oldTestResults.push(result)
+  }
+  const oldQualityScoreBreakdown = calculateQualityScore(oldTestResults, 0)
+  const oldQualityScore = oldQualityScoreBreakdown.totalScore
+
+  // Test NEW regex
+  const newPatternConfig = {
+    ...oldPatternConfig,
+    regex: generatedPattern.regex,
+  }
+  const newPattern = createPatternFromConfig(patternKey, newPatternConfig)
+  if (!newPattern) {
+    alert(`Error: Could not create pattern with new regex for ${formattedName}`)
+    return
+  }
+
+  const newTestResults = []
+  for (const sample of testSamples) {
+    const result = PatternTestEngine.executeTest(newPattern, sample)
+    newTestResults.push(result)
+  }
+  const newQualityScoreBreakdown = calculateQualityScore(newTestResults, 0)
+  const newQualityScore = newQualityScoreBreakdown.totalScore
+
+  // Calculate improvements
+  const oldPassed = oldTestResults.filter(r => r.passed).length
+  const newPassed = newTestResults.filter(r => r.passed).length
+  const improvement = newQualityScore - oldQualityScore
+
+  // Show comparison
+  const comparisonMessage = `
+📊 Pattern Test Results Comparison
+
+Pattern: ${formattedName}
+
+BEFORE (Old Regex):
+  Quality Score: ${oldQualityScore}/100
+  Tests Passed: ${oldPassed}/${oldTestResults.length}
+
+AFTER (New Regex):
+  Quality Score: ${newQualityScore}/100
+  Tests Passed: ${newPassed}/${newTestResults.length}
+
+${improvement > 0 ? `✅ Improvement: +${improvement} points` : improvement < 0 ? `⚠️ Regression: ${improvement} points` : '⚪ No change in quality score'}
+
+Do you want to save this regex to the built-in pattern configuration?
+  `.trim()
+
+  if (confirm(comparisonMessage)) {
+    // Save new regex
+    config.patterns[patternKey].regex = generatedPattern.regex
+    config.patterns[patternKey].qualityScore = newQualityScore
+    config.patterns[patternKey].lastTested = new Date().toISOString()
+
+    updateJsonConfig()
+    renderPatternCards()
+
+    // Clear the banner
+    window.clearPreloadBanner()
+
+    alert(
+      `✅ Pattern saved successfully!\n\nThe improved regex has been saved to your configuration.\n\nNew Quality Score: ${newQualityScore}/100`
+    )
+  }
 }
 
 // Pattern Builder handlers
@@ -2010,4 +2693,795 @@ window.handleUsePattern = async function (patternId) {
   alert(
     `Pattern "${pattern.name}" added to your configuration! The regex has been added to the JSON config.`
   )
+}
+
+// =============================================================================
+// REPORT ISSUE MODAL
+// =============================================================================
+
+function openReportIssueModal() {
+  // Populate pattern dropdown
+  populatePatternDropdown()
+
+  // Pre-fill with input text if available
+  if (inputText) {
+    elements.issueSampleText.value = inputText
+    updateLineCount()
+  }
+
+  // Show modal
+  elements.reportIssueModal.classList.remove('hidden')
+  document.body.style.overflow = 'hidden'
+}
+
+function closeReportIssueModal() {
+  elements.reportIssueModal.classList.add('hidden')
+  document.body.style.overflow = ''
+
+  // Clear form
+  elements.issuePattern.value = ''
+  elements.issueType.value = 'false-positive'
+  elements.issueSampleText.value = ''
+  elements.issueProblematicValue.value = ''
+  elements.issueExpectedBehavior.value = 'should-match'
+  elements.issueContext.value = ''
+  elements.issueSubmitStatus.classList.add('hidden')
+}
+
+function populatePatternDropdown() {
+  const select = elements.issuePattern
+  select.innerHTML = '<option value="">Select pattern...</option>'
+
+  // Add built-in patterns
+  const builtInPatterns = [
+    'ipv4',
+    'ipv6',
+    'macAddress',
+    'email',
+    'phone',
+    'ssn',
+    'creditCard',
+    'creditCardLast4',
+    'hostname',
+    'ticketNumber',
+    'name',
+    'uuid',
+    'filePath',
+  ]
+
+  builtInPatterns.forEach(key => {
+    if (config.patterns[key] && config.patterns[key].enabled) {
+      const option = document.createElement('option')
+      option.value = key
+      option.textContent = formatPatternName(key)
+      select.appendChild(option)
+    }
+  })
+
+  // Add custom patterns
+  if (config.patterns.custom && config.patterns.custom.length > 0) {
+    config.patterns.custom.forEach((pattern, index) => {
+      const option = document.createElement('option')
+      option.value = `custom_${index}`
+      option.textContent = `${pattern.name} (Custom)`
+      select.appendChild(option)
+    })
+  }
+}
+
+function formatPatternName(key) {
+  const names = {
+    ipv4: 'IPv4 Address',
+    ipv6: 'IPv6 Address',
+    macAddress: 'MAC Address',
+    email: 'Email',
+    phone: 'Phone Number',
+    ssn: 'SSN',
+    creditCard: 'Credit Card',
+    creditCardLast4: 'Credit Card Last 4',
+    hostname: 'Hostname',
+    ticketNumber: 'Ticket Number',
+    name: 'Name',
+    uuid: 'UUID',
+    filePath: 'File Path',
+  }
+  return names[key] || key
+}
+
+function updateLineCount() {
+  const text = elements.issueSampleText.value
+  const lineCount = text.split('\n').length
+  elements.lineCount.textContent = lineCount
+
+  if (lineCount > 500) {
+    elements.lineCount.style.color = '#e74c3c'
+  } else {
+    elements.lineCount.style.color = '#666'
+  }
+}
+
+function handleSampleTextSelection() {
+  const text = elements.issueSampleText
+  const start = text.selectionStart
+  const end = text.selectionEnd
+
+  if (start !== end) {
+    const selectedText = text.value.substring(start, end)
+    elements.issueProblematicValue.value = selectedText
+  }
+}
+
+async function handleSubmitIssue() {
+  const patternName = elements.issuePattern.value
+  const reportType = elements.issueType.value
+  const fullSampleText = elements.issueSampleText.value
+  const problematicValue = elements.issueProblematicValue.value
+  const expectedBehavior = elements.issueExpectedBehavior.value
+  const context = elements.issueContext.value
+
+  // Validation
+  if (!patternName) {
+    showIssueStatus('Please select a pattern', 'error')
+    return
+  }
+
+  if (!fullSampleText) {
+    showIssueStatus('Please provide sample text', 'error')
+    return
+  }
+
+  if (!problematicValue) {
+    showIssueStatus('Please provide the problematic value', 'error')
+    return
+  }
+
+  const lineCount = fullSampleText.split('\n').length
+  if (lineCount > 500) {
+    showIssueStatus('Sample text exceeds 500 line limit', 'error')
+    return
+  }
+
+  // Disable submit button
+  elements.btnSubmitIssue.disabled = true
+  elements.btnSubmitIssue.textContent = 'Submitting...'
+
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/patterns/${patternName}/edge-cases`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          reportType,
+          fullSampleText,
+          problematicValue,
+          expectedBehavior,
+          context: context || undefined,
+        }),
+      }
+    )
+
+    if (response.ok) {
+      await response.json() // Consume response
+      showIssueStatus(
+        'Issue submitted successfully! Thank you for your feedback.',
+        'success'
+      )
+
+      // Close modal after delay
+      setTimeout(() => {
+        closeReportIssueModal()
+      }, 2000)
+    } else {
+      const error = await response.json()
+      showIssueStatus(error.error || 'Failed to submit issue', 'error')
+    }
+  } catch (error) {
+    console.error('Submit issue error:', error)
+    showIssueStatus('Network error. Please check your connection.', 'error')
+  } finally {
+    elements.btnSubmitIssue.disabled = false
+    elements.btnSubmitIssue.textContent = 'Submit Issue'
+  }
+}
+
+function showIssueStatus(message, type) {
+  elements.issueSubmitStatus.textContent = message
+  elements.issueSubmitStatus.className = `submit-status ${type}`
+  elements.issueSubmitStatus.classList.remove('hidden')
+}
+
+// =============================================================================
+// TEST SAMPLES SUB-TAB FUNCTIONS
+// =============================================================================
+
+function populateTestPatternSelect() {
+  const select = elements.testPatternSelect
+
+  // Clear existing options except the first one
+  while (select.options.length > 1) {
+    select.remove(1)
+  }
+
+  // Add all built-in patterns
+  const builtInPatterns = [
+    'ipv4',
+    'ipv6',
+    'macAddress',
+    'email',
+    'phone',
+    'ssn',
+    'creditCard',
+    'hostname',
+    'ticketNumber',
+    'name',
+    'uuid',
+    'filePath',
+  ]
+
+  builtInPatterns.forEach(key => {
+    const option = document.createElement('option')
+    option.value = key
+    option.textContent = formatPatternName(key)
+    select.appendChild(option)
+  })
+
+  // Add event listener
+  select.addEventListener('change', handleTestPatternChange)
+}
+
+async function handleTestPatternChange() {
+  const patternName = elements.testPatternSelect.value
+
+  if (!patternName) {
+    elements.qualityScoreDisplay.classList.add('hidden')
+    elements.testResultsContainer.innerHTML =
+      '<div class="empty-state">Select a pattern above to view test samples and run tests.</div>'
+    return
+  }
+
+  // Load test samples for the selected pattern
+  const testSamples = getTestSamplesForPattern(patternName)
+
+  if (!testSamples || testSamples.length === 0) {
+    elements.qualityScoreDisplay.classList.add('hidden')
+    elements.testResultsContainer.innerHTML = `
+      <div class="info-box" style="background: rgba(241, 196, 15, 0.1); border-color: #f1c40f;">
+        <strong>No test samples found for pattern:</strong> ${formatPatternName(patternName)}
+      </div>
+    `
+    return
+  }
+
+  // Get pattern configuration
+  const patternConfig = config.patterns[patternName]
+  if (!patternConfig) {
+    elements.qualityScoreDisplay.classList.add('hidden')
+    elements.testResultsContainer.innerHTML = `
+      <div class="info-box" style="background: rgba(231, 76, 60, 0.1); border-color: #e74c3c;">
+        <strong>Error:</strong> Pattern configuration not found for ${formatPatternName(patternName)}
+      </div>
+    `
+    return
+  }
+
+  // Execute tests
+  const testResults = []
+  const pattern = createPatternFromConfig(patternName, patternConfig)
+  if (!pattern) {
+    elements.qualityScoreDisplay.classList.add('hidden')
+    elements.testResultsContainer.innerHTML = `
+      <div class="info-box" style="background: rgba(231, 76, 60, 0.1); border-color: #e74c3c;">
+        <strong>Error:</strong> Could not create pattern instance for ${formatPatternName(patternName)}
+      </div>
+    `
+    return
+  }
+
+  for (const sample of testSamples) {
+    const result = PatternTestEngine.executeTest(pattern, sample)
+    testResults.push(result)
+  }
+
+  // Calculate quality score
+  const knownIssues = await getKnownIssuesCount(patternName)
+  const qualityScoreBreakdown = calculateQualityScore(testResults, knownIssues)
+  const qualityScore = qualityScoreBreakdown.totalScore
+  const qualityTier = getQualityTier(qualityScore)
+
+  // Display quality score
+  elements.qualityScoreDisplay.classList.remove('hidden')
+  elements.qualityScoreBadge.className = `quality-badge ${qualityTier}`
+  elements.qualityScoreBadge.innerHTML = `${qualityScore}`
+
+  // Display quality breakdown
+  const passedTests = testResults.filter(r => r.passed).length
+  const totalTests = testResults.length
+  const avgAccuracy =
+    testResults.reduce((sum, r) => sum + r.accuracy, 0) / totalTests
+
+  elements.qualityScoreBreakdown.innerHTML = `
+    <div class="quality-stats">
+      <div class="stat">
+        <span class="stat-label">Tests Passed:</span>
+        <span class="stat-value">${passedTests}/${totalTests}</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Avg Accuracy:</span>
+        <span class="stat-value">${Math.round(avgAccuracy)}%</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Known Issues:</span>
+        <span class="stat-value">${knownIssues}</span>
+      </div>
+    </div>
+  `
+
+  // Render test results with samples for names
+  renderTestResults(testResults, testSamples)
+}
+
+// Test result view mode (compact or expanded)
+let testResultViewMode = 'compact'
+
+function renderTestResults(testResults, testSamples) {
+  if (!testResults || testResults.length === 0) {
+    elements.testResultsContainer.innerHTML =
+      '<div class="empty-state">No test results available.</div>'
+    return
+  }
+
+  // Add view toggle buttons if not already present
+  const existingToggle = document.querySelector('.test-view-toggle')
+  if (!existingToggle) {
+    const toggleHTML = `
+      <div class="test-view-toggle">
+        <button id="btn-test-compact" class="view-btn ${testResultViewMode === 'compact' ? 'active' : ''}">Compact</button>
+        <button id="btn-test-expanded" class="view-btn ${testResultViewMode === 'expanded' ? 'active' : ''}">Expanded</button>
+      </div>
+    `
+    elements.qualityScoreDisplay.insertAdjacentHTML('afterend', toggleHTML)
+
+    // Attach event listeners
+    document
+      .getElementById('btn-test-compact')
+      .addEventListener('click', () => {
+        testResultViewMode = 'compact'
+        renderTestResults(testResults, testSamples)
+      })
+    document
+      .getElementById('btn-test-expanded')
+      .addEventListener('click', () => {
+        testResultViewMode = 'expanded'
+        renderTestResults(testResults, testSamples)
+      })
+  } else {
+    // Update active states
+    document.getElementById('btn-test-compact').className =
+      `view-btn ${testResultViewMode === 'compact' ? 'active' : ''}`
+    document.getElementById('btn-test-expanded').className =
+      `view-btn ${testResultViewMode === 'expanded' ? 'active' : ''}`
+  }
+
+  const viewClass =
+    testResultViewMode === 'compact'
+      ? 'test-result-card-compact'
+      : 'test-result-card-expanded'
+
+  elements.testResultsContainer.innerHTML = testResults
+    .map(result => {
+      const statusClass = result.passed ? 'passed' : 'failed'
+      const statusIcon = result.passed ? '✅' : '⚠️'
+
+      // Find the sample to get name and category
+      const sample = testSamples.find(s => s.id === result.sampleId)
+      const sampleName = sample ? sample.name : result.sampleId
+      const sampleCategory = sample ? sample.category : ''
+      const sampleContent = sample ? sample.content : ''
+
+      return `
+      <div class="test-result-card ${viewClass} ${statusClass}">
+        <div class="test-header">
+          <h4>${sampleName}</h4>
+          <span class="badge ${statusClass}">
+            ${statusIcon} ${result.accuracy}% accurate
+          </span>
+        </div>
+
+        <div class="test-stats">
+          <span>Expected: ${result.expectedCount}</span>
+          <span>Found: ${result.actualCount}</span>
+          ${sampleCategory ? `<span class="category-badge">${sampleCategory}</span>` : ''}
+        </div>
+
+        ${
+          result.falsePositives.length > 0
+            ? `
+          <div class="false-positives">
+            <strong>❌ False Positives (matched but shouldn't):</strong>
+            <div class="matches-list">
+              ${result.falsePositives.map(fp => `<code>${escapeHtml(fp)}</code>`).join('')}
+            </div>
+          </div>
+        `
+            : ''
+        }
+
+        ${
+          result.falseNegatives.length > 0
+            ? `
+          <div class="false-negatives">
+            <strong>⚠️ Missed Matches (should have matched):</strong>
+            <div class="matches-list">
+              ${result.falseNegatives.map(fn => `<code>${escapeHtml(fn)}</code>`).join('')}
+            </div>
+          </div>
+        `
+            : ''
+        }
+
+        ${
+          result.passed
+            ? `
+          <div class="test-success">
+            All expected matches found with no false positives!
+          </div>
+        `
+            : ''
+        }
+
+        <!-- Full Sample Content (only in expanded view) -->
+        <div class="test-sample-content">
+          <strong>Full Sample Text:</strong>
+          <pre class="sample-content-pre">${escapeHtml(sampleContent)}</pre>
+        </div>
+
+        <div class="test-actions">
+          ${
+            !result.passed
+              ? `
+            <button class="btn btn-small btn-primary" onclick="fixPatternFromTest('${result.patternName}', '${result.sampleId}')">
+              Fix in Builder
+            </button>
+          `
+              : ''
+          }
+        </div>
+      </div>
+    `
+    })
+    .join('')
+}
+
+// View test sample detail in a modal
+window.viewTestSampleDetail = function (sampleId) {
+  const sample = getTestSample(sampleId)
+
+  if (!sample) {
+    alert('Test sample not found')
+    return
+  }
+
+  // Create modal overlay
+  const modal = document.createElement('div')
+  modal.className = 'modal'
+  modal.innerHTML = `
+    <div class="modal-overlay"></div>
+    <div class="modal-content" style="max-width: 800px;">
+      <div class="modal-header">
+        <h2 class="modal-title">Test Sample: ${sample.name}</h2>
+        <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="info-box" style="margin-bottom: 20px;">
+          <strong>Category:</strong> ${sample.category}<br>
+          <strong>Sample ID:</strong> ${sample.id}
+        </div>
+
+        <h3 style="color: #002868; margin-bottom: 10px;">Sample Content:</h3>
+        <pre style="background: rgba(0, 40, 104, 0.1); padding: 15px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(sample.content)}</pre>
+
+        <h3 style="color: #002868; margin-top: 20px; margin-bottom: 10px;">Expected Matches (${sample.expectedMatches.length}):</h3>
+        <div style="display: grid; gap: 10px;">
+          ${sample.expectedMatches
+            .map(
+              match => `
+            <div style="background: ${match.shouldMatch ? 'rgba(39, 174, 96, 0.1)' : 'rgba(231, 76, 60, 0.1)'}; padding: 12px; border-radius: 8px; border: 1px solid ${match.shouldMatch ? 'rgba(39, 174, 96, 0.3)' : 'rgba(231, 76, 60, 0.3)'};">
+              <div><strong>Value:</strong> <code>${escapeHtml(match.value)}</code></div>
+              <div><strong>Should Match:</strong> ${match.shouldMatch ? '✅ Yes' : '❌ No'}</div>
+              ${match.reason ? `<div><strong>Reason:</strong> ${escapeHtml(match.reason)}</div>` : ''}
+            </div>
+          `
+            )
+            .join('')}
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">Close</button>
+      </div>
+    </div>
+  `
+
+  document.body.appendChild(modal)
+  modal.classList.remove('hidden')
+}
+
+// Fix pattern from failed test (pre-load into Pattern Builder)
+window.fixPatternFromTest = function (patternName, sampleId) {
+  // Load the test sample
+  const testSample = getTestSample(sampleId)
+  if (!testSample) {
+    alert(`Test sample not found: ${sampleId}`)
+    return
+  }
+
+  // Get the current pattern configuration
+  const patternConfig = config.patterns[patternName]
+  if (!patternConfig) {
+    alert(`Pattern configuration not found: ${patternName}`)
+    return
+  }
+
+  // Get the first expected match as the problematic value
+  const problematicValue = testSample.expectedMatches[0]?.value || ''
+
+  // Pre-load into Pattern Builder
+  preloadPatternBuilder({
+    patternName,
+    sampleText: testSample.content,
+    problematicValue,
+    currentRegex: patternConfig.regex,
+    context: `Fixing failed test: ${testSample.name}`,
+  })
+}
+
+// =============================================================================
+// EDGE CASES SUB-TAB FUNCTIONS
+// =============================================================================
+
+function populateEdgeCaseFilters() {
+  const select = elements.edgeCasePatternFilter
+
+  // Clear existing options except the first one
+  while (select.options.length > 1) {
+    select.remove(1)
+  }
+
+  // Add all built-in patterns
+  const builtInPatterns = [
+    'ipv4',
+    'ipv6',
+    'macAddress',
+    'email',
+    'phone',
+    'ssn',
+    'creditCard',
+    'hostname',
+    'ticketNumber',
+    'name',
+    'uuid',
+    'filePath',
+  ]
+
+  builtInPatterns.forEach(key => {
+    const option = document.createElement('option')
+    option.value = key
+    option.textContent = formatPatternName(key)
+    select.appendChild(option)
+  })
+
+  // Add event listeners for filters (real-time updates)
+  elements.edgeCasePatternFilter.addEventListener('change', fetchEdgeCases)
+  elements.edgeCaseStatusFilter.addEventListener('change', fetchEdgeCases)
+  elements.edgeCaseSort.addEventListener('change', fetchEdgeCases)
+
+  // Edge case view toggle
+  if (elements.btnEdgeCaseCompact) {
+    elements.btnEdgeCaseCompact.addEventListener('click', () =>
+      setEdgeCaseViewMode('compact')
+    )
+  }
+  if (elements.btnEdgeCaseExpanded) {
+    elements.btnEdgeCaseExpanded.addEventListener('click', () =>
+      setEdgeCaseViewMode('expanded')
+    )
+  }
+}
+
+function setEdgeCaseViewMode(mode) {
+  edgeCaseViewMode = mode
+
+  // Update button states
+  if (elements.btnEdgeCaseCompact) {
+    elements.btnEdgeCaseCompact.classList.toggle('active', mode === 'compact')
+  }
+  if (elements.btnEdgeCaseExpanded) {
+    elements.btnEdgeCaseExpanded.classList.toggle('active', mode === 'expanded')
+  }
+
+  // Re-render edge cases with new view mode
+  const cards = document.querySelectorAll('.edge-case-card')
+  cards.forEach(card => {
+    if (mode === 'compact') {
+      card.classList.add('edge-case-card-compact')
+      card.classList.remove('edge-case-card-expanded')
+    } else {
+      card.classList.add('edge-case-card-expanded')
+      card.classList.remove('edge-case-card-compact')
+    }
+  })
+}
+
+async function fetchEdgeCases() {
+  const patternName = elements.edgeCasePatternFilter.value
+  const status = elements.edgeCaseStatusFilter.value
+
+  elements.edgeCasesList.innerHTML =
+    '<div class="loading-message">Loading edge cases...</div>'
+
+  try {
+    const params = new URLSearchParams()
+    if (status) params.append('status', status)
+    params.append('limit', '20')
+    params.append('offset', '0')
+
+    const url = patternName
+      ? `${API_BASE_URL}/api/patterns/${patternName}/edge-cases?${params}`
+      : `${API_BASE_URL}/api/edge-cases?${params}`
+
+    const response = await fetch(url)
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch edge cases')
+    }
+
+    const data = await response.json()
+
+    if (!data.edgeCases || data.edgeCases.length === 0) {
+      elements.edgeCasesList.innerHTML =
+        '<div class="empty-state">No edge cases found. Report an issue from the Pattern Detection tab.</div>'
+      elements.edgeCasePagination.classList.add('hidden')
+      return
+    }
+
+    renderEdgeCases(data.edgeCases)
+
+    // Update pagination
+    if (data.count > 20) {
+      elements.edgeCasePagination.classList.remove('hidden')
+      elements.edgeCasePaginationInfo.textContent = `Showing ${data.edgeCases.length} of ${data.count}`
+    } else {
+      elements.edgeCasePagination.classList.add('hidden')
+    }
+  } catch (error) {
+    console.error('Fetch edge cases error:', error)
+    elements.edgeCasesList.innerHTML = `
+      <div class="info-box" style="background: rgba(231, 76, 60, 0.1); border-color: #e74c3c;">
+        <strong>Error:</strong> Could not load edge cases. Make sure MongoDB is configured and the server is running.
+      </div>
+    `
+  }
+}
+
+function renderEdgeCases(edgeCases) {
+  const viewClass =
+    edgeCaseViewMode === 'compact'
+      ? 'edge-case-card-compact'
+      : 'edge-case-card-expanded'
+
+  elements.edgeCasesList.innerHTML = edgeCases
+    .map(
+      issue => `
+    <div class="edge-case-card ${viewClass}" data-id="${issue.id}">
+      <div class="edge-case-header">
+        <div class="edge-case-pattern">
+          <strong>${formatPatternName(issue.pattern_name)}</strong>
+          <span class="badge badge-${issue.report_type}">${issue.report_type.replace('-', ' ')}</span>
+          <span class="badge badge-${issue.status}">${issue.status}</span>
+        </div>
+        <div class="edge-case-votes">
+          <button class="vote-btn vote-up" data-id="${issue.id}">▲</button>
+          <span class="vote-count">${issue.votes}</span>
+          <button class="vote-btn vote-down" data-id="${issue.id}">▼</button>
+        </div>
+      </div>
+
+      <div class="edge-case-body">
+        <div class="edge-case-problem">
+          <strong>Problematic Value:</strong>
+          <code>${escapeHtml(issue.problematic_value)}</code>
+        </div>
+        <div class="edge-case-expected">
+          <strong>Expected:</strong> ${issue.expected_behavior}
+        </div>
+        ${issue.context ? `<div class="edge-case-context"><strong>Context:</strong> ${escapeHtml(issue.context)}</div>` : ''}
+
+        <!-- Full Sample Text (only in expanded view) -->
+        <div class="edge-case-full-sample">
+          <strong>Full Sample Text:</strong>
+          <pre class="sample-text-pre">${escapeHtml(issue.full_sample_text)}</pre>
+        </div>
+      </div>
+
+      <div class="edge-case-footer">
+        <span class="edge-case-date">${formatDate(issue.created_at)}</span>
+        <button class="btn btn-small btn-primary" onclick="fixInBuilder('${issue.id}')">Fix in Builder</button>
+      </div>
+    </div>
+  `
+    )
+    .join('')
+
+  // Add vote event listeners
+  document.querySelectorAll('.vote-btn').forEach(btn => {
+    btn.addEventListener('click', handleEdgeCaseVote)
+  })
+}
+
+async function handleEdgeCaseVote(event) {
+  const button = event.currentTarget
+  const id = button.dataset.id
+  const voteType = button.classList.contains('vote-up') ? 'up' : 'down'
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/edge-cases/${id}/vote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vote: voteType }),
+    })
+
+    if (response.ok) {
+      // Refresh the list
+      fetchEdgeCases()
+    }
+  } catch (error) {
+    console.error('Vote error:', error)
+  }
+}
+
+window.fixInBuilder = async function (id) {
+  try {
+    // Fetch the edge case details from API
+    const response = await fetch(`${API_BASE_URL}/api/edge-cases/${id}`)
+
+    if (!response.ok) {
+      alert('Failed to load edge case details. Please try again.')
+      return
+    }
+
+    const edgeCase = await response.json()
+
+    // Get the current pattern configuration
+    const patternConfig = config.patterns[edgeCase.pattern_name]
+    if (!patternConfig) {
+      alert(`Pattern configuration not found: ${edgeCase.pattern_name}`)
+      return
+    }
+
+    // Pre-load into Pattern Builder
+    preloadPatternBuilder({
+      patternName: edgeCase.pattern_name,
+      sampleText: edgeCase.full_sample_text,
+      problematicValue: edgeCase.problematic_value,
+      currentRegex: patternConfig.regex,
+      context: `Fixing ${edgeCase.report_type}: ${edgeCase.expected_behavior}`,
+    })
+  } catch (error) {
+    console.error('Error loading edge case:', error)
+    alert('Failed to load edge case details. API may be offline.')
+  }
+}
+
+function formatDate(isoString) {
+  if (!isoString) return 'Unknown date'
+  const date = new Date(isoString)
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
 }
