@@ -35,7 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const count = await collection.countDocuments(filter)
 
-      const normalizedPatterns = patterns.map((doc) =>
+      const normalizedPatterns = patterns.map(doc =>
         normalizeId(doc as CommunityPattern & { _id: ObjectId })
       )
 
@@ -52,7 +52,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { name, regex, description, category, samples, segments } = req.body
 
       if (!name || !regex) {
-        return res.status(400).json({ error: 'Missing required fields: name, regex' })
+        return res
+          .status(400)
+          .json({ error: 'Missing required fields: name, regex' })
       }
 
       // Validate regex
@@ -91,6 +93,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error) {
     console.error('[Patterns API] Error:', error)
     const message = error instanceof Error ? error.message : 'Unknown error'
-    return res.status(500).json({ error: 'Internal server error', details: message })
+    return res
+      .status(500)
+      .json({ error: 'Internal server error', details: message })
   }
 }

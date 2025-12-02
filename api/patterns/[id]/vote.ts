@@ -23,7 +23,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { vote } = req.body
     if (vote !== 'up' && vote !== 'down') {
-      return res.status(400).json({ error: 'Invalid vote. Must be "up" or "down"' })
+      return res
+        .status(400)
+        .json({ error: 'Invalid vote. Must be "up" or "down"' })
     }
 
     const db = await getDb()
@@ -31,8 +33,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const update =
       vote === 'up'
-        ? { $inc: { upvotes: 1 }, $set: { updated_at: new Date().toISOString() } }
-        : { $inc: { downvotes: 1 }, $set: { updated_at: new Date().toISOString() } }
+        ? {
+            $inc: { upvotes: 1 },
+            $set: { updated_at: new Date().toISOString() },
+          }
+        : {
+            $inc: { downvotes: 1 },
+            $set: { updated_at: new Date().toISOString() },
+          }
 
     const result = await collection.updateOne({ _id: new ObjectId(id) }, update)
 

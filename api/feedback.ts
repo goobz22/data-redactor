@@ -33,7 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const count = await collection.countDocuments(filter)
 
-      const feedback = docs.map((doc) =>
+      const feedback = docs.map(doc =>
         normalizeId(doc as FeedbackEntry & { _id: ObjectId })
       )
 
@@ -42,8 +42,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // POST - Submit feedback
     if (req.method === 'POST') {
-      const { original, missed, type, regex, sampleData, patternName, category } =
-        req.body
+      const {
+        original,
+        missed,
+        type,
+        regex,
+        sampleData,
+        patternName,
+        category,
+      } = req.body
 
       if (!original || !missed) {
         return res

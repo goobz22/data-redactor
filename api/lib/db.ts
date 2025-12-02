@@ -36,6 +36,22 @@ export interface FeedbackEntry {
   category?: string
 }
 
+export interface EdgeCaseReport {
+  _id?: ObjectId
+  id?: string
+  pattern_name: string
+  report_type: 'false-positive' | 'false-negative' | 'improvement'
+  full_sample_text: string
+  problematic_value: string
+  expected_behavior: 'should-match' | 'should-not-match' | 'partial-match'
+  context?: string
+  submitted_by?: string
+  votes: number
+  status: 'open' | 'fixed' | 'wont-fix'
+  created_at?: string
+  updated_at?: string
+}
+
 // MongoDB connection (cached for serverless)
 let cachedClient: MongoClient | null = null
 let cachedDb: Db | null = null
@@ -62,5 +78,7 @@ export function normalizeId<T extends { _id?: ObjectId }>(
   doc: T
 ): Omit<T, '_id'> & { id: string } {
   const { _id, ...rest } = doc
-  return { ...rest, id: _id?.toString() || '' } as Omit<T, '_id'> & { id: string }
+  return { ...rest, id: _id?.toString() || '' } as Omit<T, '_id'> & {
+    id: string
+  }
 }
