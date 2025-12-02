@@ -4,6 +4,10 @@ interface PatternConfig {
     strategy: RedactionStrategy;
     regex?: string;
     flags?: string;
+    testSampleIds?: string[];
+    qualityScore?: number;
+    knownIssues?: number;
+    lastTested?: string;
 }
 interface CustomPattern {
     name: string;
@@ -72,6 +76,43 @@ interface Pattern {
     enabled: boolean;
     test: (text: string) => boolean;
     findAll: (text: string) => Match[];
+}
+interface ExpectedMatch {
+    value: string;
+    shouldMatch: boolean;
+    startIndex: number;
+    endIndex: number;
+    reason?: string;
+}
+interface TestSample {
+    id: string;
+    name: string;
+    content: string;
+    expectedMatches: ExpectedMatch[];
+    category: 'logs' | 'config' | 'network' | 'support-ticket' | 'code';
+}
+interface PatternTestResult {
+    patternName: string;
+    sampleId: string;
+    passed: boolean;
+    expectedCount: number;
+    actualCount: number;
+    falsePositives: string[];
+    falseNegatives: string[];
+    accuracy: number;
+}
+interface EdgeCaseReport {
+    id: string;
+    patternName: string;
+    reportType: 'false-positive' | 'false-negative' | 'performance';
+    fullSampleText: string;
+    problematicValue: string;
+    expectedBehavior: string;
+    context?: string;
+    submittedBy?: string;
+    timestamp: number;
+    votes: number;
+    status: 'open' | 'fixed' | 'wont-fix';
 }
 
 declare class DataRedactor {
@@ -915,4 +956,112 @@ declare function testPattern(regex: string, samples: string[]): Array<{
  */
 declare function refineFromSamples(samples: string[], options?: GenerateOptions): GeneratedPattern;
 
-export { AWSCredentialsScenario, ApiKeyScenario, AuthorizationHeaderScenario, BasePattern, BaseScenario, ConfigLoader, ConnectionStringScenario, CreditCardLast4Pattern, CreditCardPattern, type CustomPattern, DEFAULT_CONFIG, DataRedactor, EmailPattern, FilePathPattern, type FormatOptions, FormatPreservingStrategy, type GenerateOptions, type GeneratedPattern, HostnamePattern, IPv4Pattern, IPv6Pattern, type IRedactionStrategy, MACAddressPattern, MaskStrategy, type Match, NamePattern, PRESETS, PasswordScenario, type Pattern, type PatternConfig, type PatternSegment, PhonePattern, type PresetName, PrivateKeyScenario, RedactionContext, type RedactionResult, type RedactionStrategy, type RedactorConfig, SSNPattern, type Scenario, type ScenarioConfig, TicketNumberPattern, type Token, TokenStrategy, TokenType, UUIDPattern, addWordBoundaries, analyzePattern, buildRegex, detectPatterns, escapeRegex, generateFromSample, getPreset, getPresetNames, hasPreset, mergeAdjacentPatterns, optimizeRegex, refineFromSamples, testPattern, tokenize, validateRegex };
+/**
+ * Pattern Testing Engine
+ *
+ * Executes test samples against patterns and validates results
+ */
+
+declare class PatternTestEngine {
+    /**
+     * Execute a pattern against a test sample
+     *
+     * @param pattern - The pattern to test
+     * @param sample - The test sample to run
+     * @returns Test result with accuracy metrics
+     */
+    static executeTest(pattern: Pattern, sample: TestSample): PatternTestResult;
+    /**
+     * Execute all test samples for a pattern
+     *
+     * @param pattern - The pattern to test
+     * @param samples - Array of test samples
+     * @returns Array of test results
+     */
+    static executeAllTests(pattern: Pattern, samples: TestSample[]): PatternTestResult[];
+    /**
+     * Get summary statistics for test results
+     */
+    static getSummary(results: PatternTestResult[]): {
+        totalTests: number;
+        passed: number;
+        failed: number;
+        averageAccuracy: number;
+        totalFalsePositives: number;
+        totalFalseNegatives: number;
+    };
+}
+
+/**
+ * Quality Score Calculator
+ *
+ * Calculates a 0-100 quality score for patterns based on:
+ * - Test coverage (50 points max)
+ * - Accuracy (30 points max)
+ * - Edge case handling (20 points max)
+ */
+
+interface QualityScoreBreakdown {
+    totalScore: number;
+    coverageScore: number;
+    accuracyScore: number;
+    edgeCaseScore: number;
+    details: {
+        testCount: number;
+        averageAccuracy: number;
+        knownIssues: number;
+    };
+}
+/**
+ * Calculate quality score for a pattern
+ *
+ * @param testResults - Array of test results
+ * @param knownIssues - Number of open edge case reports (default 0)
+ * @returns Quality score breakdown
+ */
+declare function calculateQualityScore(testResults: PatternTestResult[], knownIssues?: number): QualityScoreBreakdown;
+/**
+ * Get quality tier based on score
+ */
+declare function getQualityTier(score: number): 'excellent' | 'good' | 'fair' | 'poor' | 'untested';
+/**
+ * Get quality tier color for UI display
+ */
+declare function getQualityTierColor(tier: ReturnType<typeof getQualityTier>): string;
+/**
+ * Get quality tier badge label
+ */
+declare function getQualityTierLabel(tier: ReturnType<typeof getQualityTier>): string;
+/**
+ * Get recommendations based on quality score breakdown
+ */
+declare function getRecommendations(breakdown: QualityScoreBreakdown): string[];
+
+/**
+ * Test Samples Index
+ *
+ * Central export point for all 60 test samples (5 per pattern × 12 patterns)
+ */
+
+/**
+ * All test samples indexed by ID
+ */
+declare const ALL_TEST_SAMPLES: Record<string, TestSample>;
+/**
+ * Get a test sample by ID
+ */
+declare function getTestSample(id: string): TestSample | undefined;
+/**
+ * Get all test samples for a specific pattern
+ */
+declare function getTestSamplesForPattern(patternName: string): TestSample[];
+/**
+ * Get all test sample IDs
+ */
+declare function getAllTestSampleIds(): string[];
+/**
+ * Get test samples by category
+ */
+declare function getTestSamplesByCategory(category: TestSample['category']): TestSample[];
+
+export { ALL_TEST_SAMPLES, AWSCredentialsScenario, ApiKeyScenario, AuthorizationHeaderScenario, BasePattern, BaseScenario, ConfigLoader, ConnectionStringScenario, CreditCardLast4Pattern, CreditCardPattern, type CustomPattern, DEFAULT_CONFIG, DataRedactor, type EdgeCaseReport, EmailPattern, type ExpectedMatch, FilePathPattern, type FormatOptions, FormatPreservingStrategy, type GenerateOptions, type GeneratedPattern, HostnamePattern, IPv4Pattern, IPv6Pattern, type IRedactionStrategy, MACAddressPattern, MaskStrategy, type Match, NamePattern, PRESETS, PasswordScenario, type Pattern, type PatternConfig, type PatternSegment, PatternTestEngine, type PatternTestResult, PhonePattern, type PresetName, PrivateKeyScenario, type QualityScoreBreakdown, RedactionContext, type RedactionResult, type RedactionStrategy, type RedactorConfig, SSNPattern, type Scenario, type ScenarioConfig, type TestSample, TicketNumberPattern, type Token, TokenStrategy, TokenType, UUIDPattern, addWordBoundaries, analyzePattern, buildRegex, calculateQualityScore, detectPatterns, escapeRegex, generateFromSample, getAllTestSampleIds, getPreset, getPresetNames, getQualityTier, getQualityTierColor, getQualityTierLabel, getRecommendations, getTestSample, getTestSamplesByCategory, getTestSamplesForPattern, hasPreset, mergeAdjacentPatterns, optimizeRegex, refineFromSamples, testPattern, tokenize, validateRegex };

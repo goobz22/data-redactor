@@ -7,3 +7,13 @@ export * from './patterns'
 export * from './strategies'
 export * from './scenarios'
 export * from './regex-builder'
+
+// Testing & Validation
+export * from './testing'
+export {
+  ALL_TEST_SAMPLES,
+  getTestSample,
+  getTestSamplesForPattern,
+  getAllTestSampleIds,
+  getTestSamplesByCategory,
+} from './test-samples'
