@@ -69,6 +69,11 @@ const server = Bun.serve({
         return handleFeedback(req, corsHeaders)
       }
 
+      // Edge cases endpoints (must come before /api/patterns)
+      if (urlPath.startsWith('/api/edge-cases')) {
+        return handlePatterns(req, corsHeaders)
+      }
+
       // Community patterns endpoints
       if (urlPath.startsWith('/api/patterns')) {
         return handlePatterns(req, corsHeaders)
@@ -199,19 +204,28 @@ async function handleRedact(req: Request): Promise<Response> {
 
 console.log(`
 ╔═══════════════════════════════════════════════════════════╗
-║           Data Redactor Server                            ║
+║           Data Redactor Server v1.0.9                     ║
 ╠═══════════════════════════════════════════════════════════╣
 ║  UI:     http://localhost:${server.port}                          ║
 ║  API:    http://localhost:${server.port}/api                      ║
 ╠═══════════════════════════════════════════════════════════╣
-║  Endpoints:                                               ║
-║    GET  /api/health       - Health check                  ║
-║    POST /api/redact       - Redact sensitive data         ║
-║    GET  /api/presets      - List available presets        ║
-║    GET  /api/feedback     - List feedback submissions     ║
-║    POST /api/feedback     - Submit feedback               ║
-║    GET  /api/patterns     - List community patterns       ║
-║    POST /api/patterns     - Submit pattern                ║
-║    GET  /api/patterns/:id - Get pattern details           ║
+║  Core Endpoints:                                          ║
+║    GET  /api/health          - Health check               ║
+║    POST /api/redact          - Redact sensitive data      ║
+║    GET  /api/presets         - List available presets     ║
+║                                                            ║
+║  Community Patterns:                                      ║
+║    GET  /api/patterns        - List community patterns    ║
+║    POST /api/patterns        - Submit pattern             ║
+║    GET  /api/patterns/:id    - Get pattern details        ║
+║                                                            ║
+║  Edge Cases (v1.0.9):                                     ║
+║    GET  /api/patterns/:name/edge-cases                    ║
+║    POST /api/patterns/:name/edge-cases                    ║
+║    GET  /api/edge-cases/:id  - Get edge case details      ║
+║                                                            ║
+║  Feedback:                                                ║
+║    GET  /api/feedback        - List feedback              ║
+║    POST /api/feedback        - Submit feedback            ║
 ╚═══════════════════════════════════════════════════════════╝
 `)
