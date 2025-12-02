@@ -25,14 +25,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const db = await getDb()
     const collection = db.collection('edge_cases')
 
-    const { direction } = req.body
-    if (!direction || !['up', 'down'].includes(direction)) {
+    // Accept both 'direction' and 'vote' for compatibility
+    const voteDirection = req.body.direction || req.body.vote
+    if (!voteDirection || !['up', 'down'].includes(voteDirection)) {
       return res
         .status(400)
         .json({ error: 'Invalid vote direction. Must be "up" or "down"' })
     }
 
-    const increment = direction === 'up' ? 1 : -1
+    const increment = voteDirection === 'up' ? 1 : -1
 
     const result = await collection.findOneAndUpdate(
       { _id: new ObjectId(id) },
