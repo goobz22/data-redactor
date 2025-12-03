@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 360px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #fff;
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #CC092F 0%, #8B0000 100%);
+      color: white;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .header-content {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .header-icon {
+      width: 36px;
+      height: 36px;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .header p {
+      font-size: 12px;
+      opacity: 0.9;
+      margin-top: 4px;
+    }
+
+    /* Content */
+    .content {
+      padding: 16px;
+    }
+
+    /* Toggle Rows */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .toggle-row:last-child {
+      border-bottom: none;
+    }
+
+    .toggle-label {
+      font-size: 14px;
+      font-weight: 500;
+      color: #333;
+    }
+
+    .toggle-desc {
+      font-size: 11px;
+      color: #666;
+      margin-top: 2px;
+    }
+
+    /* Switch */
+    .switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: 0.3s;
+      border-radius: 24px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: #22c55e;
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+
+    /* Section Titles */
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #CC092F;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 16px 0 10px 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Pattern Grid */
+    .pattern-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .pattern-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      padding: 8px 10px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .pattern-item:hover {
+      background: #fff5f5;
+    }
+
+    .pattern-item input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #CC092F;
+      cursor: pointer;
+    }
+
+    .pattern-item label {
+      cursor: pointer;
+      flex: 1;
+    }
+
+    /* Customer Card */
+    .customer-card {
+      background: linear-gradient(135deg, #fef7f7 0%, #fff5f5 100%);
+      border-radius: 10px;
+      padding: 12px;
+      margin-top: 12px;
+      border-left: 3px solid #CC092F;
+    }
+
+    .customer-card.no-data {
+      background: #f8f9fa;
+      border-left-color: #ccc;
+    }
+
+    .customer-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .customer-card-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #CC092F;
+    }
+
+    .customer-card.no-data .customer-card-title {
+      color: #666;
+    }
+
+    .customer-badge {
+      background: #22c55e;
+      color: white;
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 500;
+    }
+
+    .customer-info {
+      font-size: 12px;
+      color: #333;
+    }
+
+    .customer-info-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .customer-info-label {
+      color: #666;
+      min-width: 60px;
+    }
+
+    .customer-info-value {
+      font-weight: 500;
+      color: #CC092F;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 11px;
+    }
+
+    /* Buttons */
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #CC092F 0%, #8B0000 100%);
+      color: white;
+      margin-top: 12px;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(204, 9, 47, 0.4);
+    }
+
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #333;
+      margin-top: 8px;
+    }
+
+    .btn-secondary:hover {
+      background: #e0e0e0;
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .btn-group .btn {
+      margin-top: 0;
+    }
+
+    /* Status */
+    .status {
+      text-align: center;
+      padding: 10px;
+      font-size: 13px;
+      border-radius: 8px;
+      margin-top: 12px;
+      display: none;
+    }
+
+    .status.visible {
+      display: block;
+    }
+
+    .status.success {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .status.error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .status.info {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    /* Mapping Box */
+    .mapping-box {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 10px;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 11px;
+      max-height: 100px;
+      overflow-y: auto;
+      margin-top: 8px;
+    }
+
+    .mapping-box::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .mapping-box::-webkit-scrollbar-thumb {
+      background: #ccc;
+      border-radius: 2px;
+    }
+
+    .mapping-item {
+      display: flex;
+      margin-bottom: 4px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .mapping-item:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .mapping-orig {
+      color: #c5221f;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .mapping-arrow {
+      color: #666;
+      margin: 0 6px;
+    }
+
+    .mapping-redacted {
+      color: #1a73e8;
+      font-weight: 600;
+    }
+
+    /* Shortcut */
+    .shortcut {
+      font-size: 11px;
+      color: #666;
+      text-align: center;
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid #eee;
+    }
+
+    .shortcut kbd {
+      background: #eee;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'SF Mono', Monaco, monospace;
+      border: 1px solid #ccc;
+      font-size: 10px;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #eee;
+      margin: 0 -16px;
+      padding: 0 16px;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 10px;
+      background: none;
+      border: none;
+      color: #666;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-bottom: 2px solid transparent;
+    }
+
+    .tab:hover {
+      color: #CC092F;
+    }
+
+    .tab.active {
+      color: #CC092F;
+      border-bottom-color: #CC092F;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* History */
+    .history-list {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .history-item {
+      padding: 10px;
+      border: 1px solid #eee;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .history-item:hover {
+      border-color: #CC092F;
+      background: #fff5f5;
+    }
+
+    .history-item-name {
+      font-weight: 500;
+      font-size: 13px;
+    }
+
+    .history-item-meta {
+      font-size: 11px;
+      color: #666;
+      margin-top: 2px;
+    }
+
+    .no-data {
+      text-align: center;
+      color: #999;
+      font-size: 12px;
+      padding: 20px;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 12px;
+      background: #f8f9fa;
+      font-size: 11px;
+      color: #666;
+    }
+
+    .footer a {
+      color: #CC092F;
+      text-decoration: none;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-content">
+      <svg class="header-icon" viewBox="0 0 128 128">
+        <defs>
+          <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#fff;stop-opacity:0.95"/>
+            <stop offset="100%" style="stop-color:#f0f0f0;stop-opacity:0.9"/>
+          </linearGradient>
+        </defs>
+        <path d="M64 20 L108 32 L108 68 Q108 100 64 116 Q20 100 20 68 L20 32 Z" fill="url(#shieldGrad)"/>
+        <path d="M64 30 L98 40 L98 66 Q98 92 64 106 Q30 92 30 66 L30 40 Z" fill="#CC092F"/>
+        <text x="64" y="76" font-size="40" font-weight="bold" fill="white" text-anchor="middle" font-family="Arial">G</text>
+        <circle cx="52" cy="48" r="5" fill="rgba(255,255,255,0.8)"/>
+        <circle cx="76" cy="48" r="5" fill="rgba(255,255,255,0.8)"/>
+      </svg>
+      <div>
+        <h1>Data Redactor</h1>
+        <p>Gemini AI Sanitizer</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" data-tab="main">Settings</button>
+      <button class="tab" data-tab="customer">Customer</button>
+      <button class="tab" data-tab="history">History</button>
+    </div>
+
+    <!-- Main Settings Tab -->
+    <div class="tab-content active" data-tab="main">
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">Enable Redaction</div>
+          <div class="toggle-desc">Activate data protection</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="enabled">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">Auto-Redact on Paste</div>
+          <div class="toggle-desc">Automatically redact pasted content</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="autoRedact">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="section-title">🔍 Detection Patterns</div>
+      <div class="pattern-grid">
+        <label class="pattern-item">
+          <input type="checkbox" data-pattern="email">
+          <span>Email</span>
+        </label>
+        <label class="pattern-item">
+          <input type="checkbox" data-pattern="phone">
+          <span>Phone</span>
+        </label>
+        <label class="pattern-item">
+          <input type="checkbox" data-pattern="ssn">
+          <span>SSN</span>
+        </label>
+        <label class="pattern-item">
+          <input type="checkbox" data-pattern="creditCard">
+          <span>Credit Card</span>
+        </label>
+        <label class="pattern-item">
+          <input type="checkbox" data-pattern="ipv4">
+          <span>IPv4</span>
+        </label>
+        <label class="pattern-item">
+          <input type="checkbox" data-pattern="ipv6">
+          <span>IPv6</span>
+        </label>
+        <label class="pattern-item">
+          <input type="checkbox" data-pattern="macAddress">
+          <span>MAC Addr</span>
+        </label>
+        <label class="pattern-item">
+          <input type="checkbox" data-pattern="awsKey">
+          <span>AWS Key</span>
+        </label>
+        <label class="pattern-item">
+          <input type="checkbox" data-pattern="apiKey">
+          <span>API Key</span>
+        </label>
+      </div>
+
+      <button class="btn btn-primary" id="redactBtn">
+        <span>🛡️</span>
+        <span>Redact Now</span>
+      </button>
+
+      <div class="status" id="status"></div>
+
+      <div class="section-title">📋 Last Redaction</div>
+      <div class="mapping-box" id="mapping">No redactions yet</div>
+
+      <button class="btn btn-secondary" id="copyBtn">📋 Copy Mapping</button>
+    </div>
+
+    <!-- Customer Tab -->
+    <div class="tab-content" data-tab="customer">
+      <div class="customer-card" id="customer-card">
+        <div class="customer-card-header">
+          <span class="customer-card-title" id="customer-title">👤 No Customer Loaded</span>
+          <span class="customer-badge" id="customer-badge" style="display:none">Ready</span>
+        </div>
+        <div class="customer-info" id="customer-info">
+          <p class="no-data">Capture customer data from your CRM to see it here.</p>
+        </div>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn btn-secondary" id="refreshCustomer">↻ Refresh</button>
+        <button class="btn btn-secondary" id="clearCustomer">🗑️ Clear</button>
+      </div>
+
+      <div class="section-title">💡 How It Works</div>
+      <p style="font-size:12px;color:#666;line-height:1.5;">
+        1. Install the CRM extractor script<br>
+        2. Click "Capture" on a customer page<br>
+        3. Data appears here automatically<br>
+        4. Use templates in the panel on Gemini
+      </p>
+    </div>
+
+    <!-- History Tab -->
+    <div class="tab-content" data-tab="history">
+      <div class="section-title">📜 Recent Customers</div>
+      <div class="history-list" id="history-list">
+        <p class="no-data">No history yet</p>
+      </div>
+      <button class="btn btn-secondary" id="clearHistory">🗑️ Clear History</button>
+    </div>
+
+    <p class="shortcut">
+      <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> Redact &nbsp;|&nbsp;
+      <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd> Panel
+    </p>
+  </div>
+
+  <div class="footer">
+    Data Redactor v2.0.0 • <a href="https://github.com/goobz22/data-redactor" target="_blank">GitHub</a>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
