@@ -1,33 +1,21 @@
 {
-  "name": "data-redactor-core",
-  "version": "1.0.8",
-  "description": "Client-side data redaction tool for securing sensitive information before sending to AI systems",
-  "main": "packages/core/dist/index.js",
-  "module": "packages/core/dist/index.mjs",
-  "types": "packages/core/dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./packages/core/dist/index.d.ts",
-      "import": "./packages/core/dist/index.mjs",
-      "require": "./packages/core/dist/index.js"
-    }
-  },
-  "files": ["packages/core/dist", "README.md"],
+  "name": "data-redactor",
+  "version": "1.1.0",
+  "description": "PII detection and redaction powered by Microsoft Presidio NLP",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "bun run dev.ts",
     "dev:ui": "bun --hot packages/ui/index.html",
     "dev:api": "bun --hot packages/api/server.ts",
-    "start": "bun run build && bun packages/api/server.ts",
-    "build": "bun run build:core && bun run build:ui",
-    "build:core": "tsup packages/core/src/index.ts --outDir packages/core/dist --format cjs,esm --dts",
+    "start": "bun run build:ui && bun packages/api/server.ts",
+    "presidio": "presidio-backend/Scripts/python.exe presidio-backend/presidio_server.py",
+    "build": "bun run build:ui",
     "build:ui": "bun build-ui.js",
-    "postinstall": "bun run build:core",
     "test": "bun test",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --write \"packages/**/*.{ts,js,json,css,md}\"",
-    "prepublishOnly": "bun run build:core"
+    "format": "prettier --write \"packages/**/*.{ts,js,json,css,md}\""
   },
   "repository": {
     "type": "git",
@@ -39,15 +27,8 @@
   "homepage": "https://github.com/goobz22/data-redactor#readme",
   "author": "Matthew Goluba <mkgoluba@outlook.com> (https://github.com/goobz22)",
   "license": "MIT",
-  "keywords": ["redaction", "data-privacy", "pii", "security", "anonymization", "ai-safety"],
-  "publishConfig": {
-    "access": "public"
-  },
+  "keywords": ["redaction", "data-privacy", "pii", "security", "anonymization", "ai-safety", "presidio", "nlp"],
   "dependencies": {
-    "@vercel/node": "^5.5.13",
-    "common-last-names": "^1",
-    "datasets-female-first-names-en": "^1",
-    "datasets-male-first-names-en": "^1",
     "mongodb": "^7"
   },
   "devDependencies": {
@@ -55,7 +36,6 @@
     "bun-types": "^1",
     "eslint": "^9",
     "prettier": "^3",
-    "tsup": "^8",
     "typescript": "^5"
   }
 }
