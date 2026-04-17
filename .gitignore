@@ -46,3 +46,16 @@ bun.lockb
 # OS
 .DS_Store
 Thumbs.db
+
+# Python virtualenv for Presidio backend — the server script itself is
+# tracked, but the 1 GB+ venv (spaCy models, scipy, etc) is platform-
+# specific and recreated via:
+#   python -m venv presidio-backend
+#   presidio-backend/Scripts/pip install presidio-analyzer presidio-anonymizer spacy
+#   presidio-backend/Scripts/python -m spacy download en_core_web_lg
+presidio-backend/Include/
+presidio-backend/Lib/
+presidio-backend/Scripts/
+presidio-backend/pyvenv.cfg
+presidio-backend/__pycache__/
+presidio-backend/*.pyc
